@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>AI 会议转写</title>
+    
+    <script src="lib/react.production.min.js"></script>
+    <script src="lib/react-dom.production.min.js"></script>
+    
+    <!-- Arco Design (Local) -->
+    <link rel="stylesheet" href="lib/arco.min.css" />
+    <script src="lib/arco.min.js"></script>
+    <script src="lib/arco-icon.min.js"></script>
+    
+    <!-- Babel for JSX (Local) -->
+    <script src="lib/babel.min.js"></script>
+    
+    <script>
+        window.onerror = function(msg, url, line, col, error) {
+            console.error("Global Error:", msg, "at", url, ":", line);
+            document.body.innerHTML = '<div style="color:red;padding:20px;background:#fff;">' +
+                '<h3>前端加载错误</h3>' +
+                '<p>' + msg + '</p>' +
+                '<p>URL: ' + url + ' (Line: ' + line + ')</p>' +
+                '<button onclick="location.reload(true)">重试 (强制刷新)</button>' +
+                '</div>';
+            return false;
+        };
+    </script>
+
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <div id="root"></div>
+
+    <!-- Configuration (override these for different environments) -->
+    <script>
+        // Enhanced Production-ready dynamic API & WS routing (with local file fallback)
+        const isFile = window.location.protocol === 'file:';
+        const isSecure = window.location.protocol === 'https:';
+        const host = window.location.host; 
+        const localDev = 'localhost:8085';
+
+        // If open via file:// or empty host, fallback to local dev server
+        const targetHost = (isFile || !host) ? localDev : host;
+        const targetProto = (isFile || !host) ? 'http:' : window.location.protocol;
+        const wsProto = (isSecure) ? 'wss' : 'ws';
+
+        window.API_BASE = `${targetProto}//${targetHost}/api`;
+        window.WS_BASE = `${wsProto}://${targetHost}/ws`;
+        
+        // Arco Icon Library Bridge
+        window.ArcoIcon = window.arcoicon || {};
+        
+        window.WS_TOKEN = 'meeting-ai-dev-token-2026';
+    </script>
+
+    <!-- Utilities (loaded first, no JSX) -->
+    <script src="js/utils/audio.js"></script>
+    <script src="js/utils/api.js"></script>
+
+    <!-- Components -->
+    <script type="text/babel" data-presets="react,env" src="js/components/MeetingList.js?v=1.4"></script>
+    <script type="text/babel" data-presets="react,env" src="js/components/Uploader.js?v=1.4"></script>
+    <script type="text/babel" data-presets="react,env" src="js/components/Recorder.js?v=1.4"></script>
+    <script type="text/babel" data-presets="react,env" src="js/components/MeetingDetail.js?v=1.4"></script>
+
+    <!-- Main app (loaded last) -->
+    <script type="text/babel" data-presets="react,env" src="js/app.js?v=1.4"></script>
+</body>
+</html>

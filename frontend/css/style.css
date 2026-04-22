@@ -1,0 +1,34 @@
+/* ===== AI Meeting Transcription - Minimal Custom Styles ===== */
+/* Arco Design provides most of the UI styles now. */
+
+/* --- Recording Indicator Animation for Recorder.js --- */
+.pulse-dot {
+    animation: pulse 1.4s ease-in-out infinite;
+}
+
+@keyframes pulse {
+    0%, 100% { opacity: 1; transform: scale(1); }
+    50% { opacity: 0.3; transform: scale(0.7); }
+}
+
+/* Fix for main content background */
+body {
+    background: var(--color-bg-1);
+    color: var(--color-text-1);
+}
+
+/* Typewriter Cursor Animation */
+.typewriter-cursor {
+    display: inline-block;
+    width: 2px;
+    background-color: #165dff;
+    margin-left: 2px;
+    animation: blink 1s step-end infinite;
+    font-weight: bold;
+    color: #165dff;
+}
+
+@keyframes blink {
+    from, to { opacity: 1; }
+    50% { opacity: 0; }
+}
