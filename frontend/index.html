@@ -13,6 +13,9 @@
     <script src="lib/arco.min.js"></script>
     <script src="lib/arco-icon.min.js"></script>
     
+    <!-- html2canvas for exporting editable minutes as PNG -->
+    <script src="lib/html2canvas.min.js"></script>
+
     <!-- Babel for JSX (Local) -->
     <script src="lib/babel.min.js"></script>
     
@@ -59,14 +62,16 @@
     <!-- Utilities (loaded first, no JSX) -->
     <script src="js/utils/audio.js"></script>
     <script src="js/utils/api.js"></script>
+    <script src="js/utils/minutes-export.js"></script>
 
     <!-- Components -->
-    <script type="text/babel" data-presets="react,env" src="js/components/MeetingList.js?v=1.4"></script>
-    <script type="text/babel" data-presets="react,env" src="js/components/Uploader.js?v=1.4"></script>
-    <script type="text/babel" data-presets="react,env" src="js/components/Recorder.js?v=1.4"></script>
-    <script type="text/babel" data-presets="react,env" src="js/components/MeetingDetail.js?v=1.4"></script>
+    <script type="text/babel" data-presets="react,env" src="js/components/MeetingList.js?v=1.5"></script>
+    <script type="text/babel" data-presets="react,env" src="js/components/Uploader.js?v=1.5"></script>
+    <script type="text/babel" data-presets="react,env" src="js/components/Recorder.js?v=1.5"></script>
+    <script type="text/babel" data-presets="react,env" src="js/components/TextIngest.js?v=1.5"></script>
+    <script type="text/babel" data-presets="react,env" src="js/components/MeetingDetail.js?v=1.6"></script>
 
     <!-- Main app (loaded last) -->
-    <script type="text/babel" data-presets="react,env" src="js/app.js?v=1.4"></script>
+    <script type="text/babel" data-presets="react,env" src="js/app.js?v=1.5"></script>
 </body>
 </html>

@@ -34,6 +34,17 @@ class MeetingCreate(BaseModel):
     title: str = Field(default="Untitled Meeting", max_length=256)
 
 
+class MeetingFromTextCreate(BaseModel):
+    """Payload for creating a meeting directly from pasted text.
+
+    The transcript is taken as-is (no ASR required) and sent through the
+    standard AI pipeline to produce polished transcript, structured
+    minutes, and extracted requirements.
+    """
+    title: str = Field(default="Untitled Meeting", max_length=256)
+    transcript: str = Field(min_length=1, max_length=200000)
+
+
 class MeetingUpdate(BaseModel):
     """Partial update payload for a meeting."""
     title: Optional[str] = None
@@ -97,6 +108,101 @@ async def create_meeting(
     await db.commit()
     await db.refresh(meeting)
     logger.info("Created meeting id=%s title=%r", meeting.id, meeting.title)
+    return meeting
+
+
+async def run_text_to_minutes(meeting_id: int) -> None:
+    """Background task: run full AI pipeline over a text-only meeting.
+
+    Saves polished transcript, structured minutes and requirements back to
+    the DB. On failure, marks meeting status as ``failed``.
+    """
+    from backend.database import async_session_factory
+
+    async with async_session_factory() as db:
+        meeting = await db.get(Meeting, meeting_id)
+        if meeting is None or not (meeting.raw_transcript or "").strip():
+            return
+
+        try:
+            pipeline = MeetingAIPipeline(
+                openai_api_key=settings.OPENAI_API_KEY,
+                model=settings.OPENAI_MODEL,
+                base_url=settings.OPENAI_BASE_URL or None,
+            )
+            result = await pipeline.process(
+                raw_transcript=meeting.raw_transcript,
+                meeting_title=meeting.title,
+            )
+
+            meeting.polished_transcript = result.get("polished_transcript", "")
+            meeting.meeting_minutes = json.dumps(
+                result.get("meeting_minutes", {}), ensure_ascii=False
+            )
+            meeting.end_time = meeting.end_time or datetime.utcnow()
+            meeting.status = "completed"
+            await db.commit()
+
+            # Replace existing requirements (idempotent if user retriggers).
+            await db.execute(
+                sql_delete(Requirement).where(Requirement.meeting_id == meeting_id)
+            )
+            for idx, req in enumerate(result.get("requirements", [])):
+                db.add(Requirement(
+                    meeting_id=meeting_id,
+                    req_id=req.get("id", f"REQ-{idx + 1:03d}"),
+                    module=req.get("module", ""),
+                    description=req.get("description", ""),
+                    priority=req.get("priority", "P2"),
+                    source=req.get("source", ""),
+                    speaker=req.get("speaker", ""),
+                    status="待确认",
+                ))
+            await db.commit()
+            logger.info("Text-ingest meeting %s: pipeline complete", meeting_id)
+        except Exception:
+            logger.exception("Text-ingest pipeline failed for meeting %s", meeting_id)
+            meeting.status = "failed"
+            await db.commit()
+
+
+@router.post(
+    "/from-text",
+    response_model=MeetingOut,
+    status_code=status.HTTP_201_CREATED,
+)
+async def create_meeting_from_text(
+    payload: MeetingFromTextCreate,
+    background_tasks: BackgroundTasks,
+    db: AsyncSession = Depends(get_session),
+) -> Meeting:
+    """Create a meeting directly from pasted transcript text.
+
+    The transcript is stored as ``raw_transcript`` and the AI pipeline is
+    scheduled in the background.  The new meeting is returned immediately
+    so the client can navigate to its detail page and poll progress.
+    """
+    transcript = payload.transcript.strip()
+    if not transcript:
+        raise HTTPException(status_code=400, detail="transcript must not be empty")
+
+    meeting = Meeting(
+        title=payload.title or "Untitled Meeting",
+        start_time=datetime.utcnow(),
+        raw_transcript=transcript,
+        status="processing",
+        asr_engine="text",
+    )
+    db.add(meeting)
+    await db.commit()
+    await db.refresh(meeting)
+
+    background_tasks.add_task(run_text_to_minutes, meeting.id)
+    logger.info(
+        "Created text-ingest meeting id=%s (%d chars)",
+        meeting.id,
+        len(transcript),
+    )
     return meeting
 
 
@@ -799,17 +905,6 @@ async def manual_summarize(
 @router.post("/{meeting_id}/actions/extract_requirements")
 async def manual_extract_requirements(
     meeting_id: int, 
-    background_tasks: BackgroundTasks,
-    db: AsyncSession = Depends(get_session)
-) -> dict:
-    """Manually trigger requirement extraction in background."""
-    meeting = await db.get(Meeting, meeting_id)
-    if not meeting or not meeting.raw_transcript:
-        raise HTTPException(status_code=400, detail="Meeting or transcript not found")
-    meeting.status = "processing"
-    await db.commit()
-    background_tasks.add_task(run_manual_extract, meeting_id)
-    return {"status": "processing"}
     background_tasks: BackgroundTasks,
     db: AsyncSession = Depends(get_session)
 ) -> dict:
