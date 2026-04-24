@@ -21,6 +21,30 @@ const api = {
     },
 
     /**
+     * Create a meeting directly from pasted transcript text.
+     * Skips ASR and runs the AI pipeline in background on the server.
+     * @param {string} title - Meeting title
+     * @param {string} transcript - Raw transcript text
+     * @returns {Promise<Object>} - Meeting object with id
+     */
+    createMeetingFromText: async (title, transcript) => {
+        const res = await fetch(`${API_BASE}/meetings/from-text`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ title, transcript })
+        });
+        if (!res.ok) {
+            let detail = `Create from text failed: ${res.status}`;
+            try {
+                const data = await res.json();
+                if (data.detail) detail = data.detail;
+            } catch (e) {}
+            throw new Error(detail);
+        }
+        return res.json();
+    },
+
+    /**
      * Fetch all meetings.
      * @returns {Promise<Array>} - List of meeting objects
      */
