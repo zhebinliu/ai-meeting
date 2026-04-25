@@ -200,22 +200,49 @@ function MeetingList({ meetings, onSelect, onRefresh, onNavigate }) {
         <Menu onClickMenuItem={(key) => {
             if (key === 'feishu' && record.feishu_url) window.open(record.feishu_url, '_blank');
             if (key === 'bitable' && record.bitable_url) window.open(record.bitable_url, '_blank');
+            if (key === 'kb' && record.kb_url) window.open(record.kb_url, '_blank');
         }}>
             {record.feishu_url && <Menu.Item key="feishu"><IconFile /> &nbsp;打开飞书文档</Menu.Item>}
             {record.bitable_url && <Menu.Item key="bitable"><IconApps /> &nbsp;打开多维表格</Menu.Item>}
+            {record.kb_url && <Menu.Item key="kb">📚 &nbsp;打开实施知识库文档</Menu.Item>}
         </Menu>
     );
+
+    /** Renders a small green "已同步实施知识库" badge alongside the title.
+     *  Clicking it opens the KB doc directly without entering the detail page. */
+    const renderKbBadge = (record) => {
+        if (!record.kb_synced_at) return null;
+        const tip = `已于 ${new Date(record.kb_synced_at).toLocaleString('zh-CN')} 同步到实施知识库`;
+        return (
+            <Tooltip content={tip} key="kb">
+                <span
+                    className="ds-badge tone-green"
+                    style={{ marginLeft: 8, fontSize: 11, cursor: record.kb_url ? 'pointer' : 'default' }}
+                    onClick={(e) => {
+                        if (!record.kb_url) return;
+                        e.stopPropagation();
+                        window.open(record.kb_url, '_blank');
+                    }}
+                >
+                    📚 已同步实施知识库
+                </span>
+            </Tooltip>
+        );
+    };
 
     const columns = [
         {
             title: '会议标题',
             dataIndex: 'title',
             render: (col, record) => (
-                <span
-                    onClick={() => onSelect(record)}
-                    style={{ cursor: 'pointer', color: 'var(--ds-text)', fontWeight: 500 }}
-                >
-                    {col || '未命名会议'}
+                <span style={{ display: 'inline-flex', alignItems: 'center', flexWrap: 'wrap', gap: 4 }}>
+                    <span
+                        onClick={() => onSelect(record)}
+                        style={{ cursor: 'pointer', color: 'var(--ds-text)', fontWeight: 500 }}
+                    >
+                        {col || '未命名会议'}
+                    </span>
+                    {renderKbBadge(record)}
                 </span>
             ),
         },
@@ -261,7 +288,7 @@ function MeetingList({ meetings, onSelect, onRefresh, onNavigate }) {
                     <Tooltip content="查看详情">
                         <Button type="text" size="small" icon={<IconSearch />} onClick={() => onSelect(record)} />
                     </Tooltip>
-                    {(record.feishu_url || record.bitable_url) && (
+                    {(record.feishu_url || record.bitable_url || record.kb_url) && (
                         <Dropdown droplist={rowActionsMenu(record)} trigger="click" position="br">
                             <Button type="text" size="small" icon={<IconMore />} />
                         </Dropdown>

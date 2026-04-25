@@ -36,6 +36,14 @@ function TextIngest({ onMeetingCreated }) {
             Message.warning('请先粘贴或上传会议转录文字');
             return;
         }
+        // Defensive guard — we've seen stale browser caches serve an older
+        // api.js where this method didn't exist yet. Show a clear,
+        // actionable error instead of the cryptic native TypeError.
+        if (!window.api || typeof window.api.createMeetingFromText !== 'function') {
+            Message.error('前端代码已更新，请按 Ctrl+Shift+R 强制刷新页面后重试');
+            console.warn('[TextIngest] window.api state:', window.api);
+            return;
+        }
         setSubmitting(true);
         try {
             const meeting = await window.api.createMeetingFromText(

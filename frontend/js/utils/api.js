@@ -1,4 +1,14 @@
-/* API utilities for backend communication */
+/* API utilities for backend communication.
+ *
+ * NOTE: this file is loaded as a classic <script>, NOT a module — so the
+ * top-level `const api = {...}` would otherwise stay inside the script's
+ * own lexical scope. The `window.api = api;` line at the bottom is what
+ * actually exposes it to the rest of the components. We also seed an
+ * empty `window.api` placeholder up-front so a half-loaded cache or a
+ * partial parse error here surfaces as a clearly-named "missing method"
+ * instead of the cryptic "Cannot read properties of undefined". */
+
+window.api = window.api || {};
 
 const API_BASE = window.API_BASE || 'http://localhost:8000/api';
 const WS_BASE = window.WS_BASE || 'ws://localhost:8000';
@@ -208,5 +218,52 @@ const api = {
         if (!res.ok) throw new Error(`Resume failed: ${res.status}`);
         return res.json();
     },
+
+    /**
+     * Fetch the project list from the external Knowledge Base.
+     * Used by the "Sync to KB" project picker.
+     * @returns {Promise<Array<{id, name, customer, industry, document_count}>>}
+     */
+    listKbProjects: async () => {
+        const res = await fetch(`${API_BASE}/meetings/kb/projects`);
+        if (!res.ok) {
+            let detail = `KB projects failed: ${res.status}`;
+            try {
+                const d = await res.json();
+                if (d.detail) detail = d.detail;
+            } catch (e) {}
+            throw new Error(detail);
+        }
+        return res.json();
+    },
+
+    /**
+     * Sync this meeting's minutes (Markdown) to the Knowledge Base.
+     * @param {string|number} id - Meeting ID
+     * @param {{project_id?: string, doc_type?: string}} options
+     */
+    syncMeetingToKb: async (id, options = {}) => {
+        const res = await fetch(`${API_BASE}/meetings/${id}/sync-kb`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                project_id: options.project_id || null,
+                doc_type: options.doc_type || null,
+            }),
+        });
+        if (!res.ok) {
+            let detail = `KB sync failed: ${res.status}`;
+            try {
+                const d = await res.json();
+                if (d.detail) detail = d.detail;
+            } catch (e) {}
+            throw new Error(detail);
+        }
+        return res.json();
+    },
 };
+
 window.api = api;
+// Quick smoke-test marker — open DevTools console and look for this line
+// to confirm the freshest api.js actually loaded (not a stale cache).
+console.info('[api.js] loaded v1.8 — methods:', Object.keys(api).length);

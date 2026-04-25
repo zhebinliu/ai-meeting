@@ -31,6 +31,18 @@ class Settings:
     FEISHU_APP_ID: str = os.getenv("FEISHU_APP_ID", "")
     FEISHU_APP_SECRET: str = os.getenv("FEISHU_APP_SECRET", "")
 
+    # --- Knowledge Base sync ---
+    # Base URL of the KB system (e.g. https://kb.tokenwave.cloud), no trailing /api.
+    KB_BASE_URL: str = os.getenv("KNOWLEDGE_BASE_BASE_URL", "").rstrip("/")
+    KB_USERNAME: str = os.getenv("KNOWLEDGE_BASE_USERNAME", "")
+    KB_PASSWORD: str = os.getenv("KNOWLEDGE_BASE_PASSWORD", "")
+    KB_DEFAULT_DOC_TYPE: str = os.getenv("KNOWLEDGE_BASE_DEFAULT_DOC_TYPE", "meeting_notes")
+
+    @property
+    def kb_enabled(self) -> bool:
+        """KB sync is available only when all credentials are configured."""
+        return bool(self.KB_BASE_URL and self.KB_USERNAME and self.KB_PASSWORD)
+
     # --- Database ---
     DATABASE_URL: str = os.getenv("DATABASE_URL", "sqlite:///./meeting_ai.db")
 

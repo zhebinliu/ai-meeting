@@ -26,6 +26,10 @@ class Meeting(Base):
     done_chunks: int = Column(Integer, nullable=False, default=0)
     bitable_app_token: str | None = Column(String(128), nullable=True, default=None)
     feishu_url: str | None = Column(Text, nullable=True, default=None)
+    # --- Knowledge Base sync ---
+    kb_doc_id: str | None = Column(String(64), nullable=True, default=None)
+    kb_url: str | None = Column(Text, nullable=True, default=None)
+    kb_synced_at: datetime | None = Column(DateTime, nullable=True, default=None)
     created_at: datetime = Column(DateTime, nullable=False, default=datetime.utcnow)
 
     def __repr__(self) -> str:

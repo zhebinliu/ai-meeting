@@ -71,6 +71,9 @@ class MeetingOut(BaseModel):
     done_chunks: int = 0
     feishu_url: Optional[str] = None
     bitable_url: Optional[str] = None
+    kb_doc_id: Optional[str] = None
+    kb_url: Optional[str] = None
+    kb_synced_at: Optional[datetime] = None
     created_at: datetime
 
     model_config = {"from_attributes": True}
@@ -276,6 +279,9 @@ async def get_meeting(
         "done_chunks": meeting.done_chunks,
         "feishu_url": meeting.feishu_url,
         "bitable_url": f"https://feishu.cn/base/{meeting.bitable_app_token}" if meeting.bitable_app_token else None,
+        "kb_doc_id": meeting.kb_doc_id,
+        "kb_url": meeting.kb_url,
+        "kb_synced_at": meeting.kb_synced_at,
         "created_at": meeting.created_at,
         "requirements": requirements,
     }
@@ -453,6 +459,244 @@ async def export_meeting_to_feishu(
     await db.commit()
     
     return {"status": "success", "url": doc_url}
+
+
+def _build_minutes_markdown(meeting: Meeting) -> str:
+    """Render a Markdown representation of a meeting's minutes.
+
+    Mirrors the structure used by the frontend's ``minutes-export.js`` so
+    KB content matches what users see in the UI: title, meta line, summary,
+    discussion key points, decisions and action items.
+    """
+    title = (meeting.title or "未命名会议").strip() or "未命名会议"
+    date = ""
+    if meeting.start_time:
+        try:
+            date = meeting.start_time.strftime("%Y-%m-%d")
+        except Exception:  # noqa: BLE001
+            date = str(meeting.start_time)
+
+    minutes: dict = {}
+    if meeting.meeting_minutes:
+        try:
+            minutes = json.loads(meeting.meeting_minutes) or {}
+        except (json.JSONDecodeError, TypeError):
+            minutes = {}
+
+    def _flatten_key_point(p) -> str:
+        if isinstance(p, str):
+            return p.strip()
+        if not isinstance(p, dict):
+            return ""
+        topic = (p.get("topic") or "").strip()
+        content = (p.get("content") or "").strip()
+        return f"{topic}：{content}" if topic else content
+
+    def _flatten_decision(d) -> str:
+        if isinstance(d, str):
+            return d.strip()
+        if not isinstance(d, dict):
+            return ""
+        content = (d.get("content") or "").strip()
+        owner = (d.get("owner") or "").strip()
+        return f"{content}（负责人：{owner}）" if owner else content
+
+    def _flatten_action(a) -> str:
+        if isinstance(a, str):
+            return a.strip()
+        if not isinstance(a, dict):
+            return ""
+        owner = (a.get("owner") or "").strip()
+        task = (a.get("task") or a.get("content") or "").strip()
+        deadline = (a.get("deadline") or "").strip()
+        prefix = f"{owner}：" if owner else ""
+        suffix = f"（截止：{deadline}）" if deadline else ""
+        return f"{prefix}{task}{suffix}".strip()
+
+    summary = (minutes.get("summary") or "").strip()
+    key_points = [s for s in (_flatten_key_point(p) for p in (minutes.get("key_points") or [])) if s]
+    decisions = [s for s in (_flatten_decision(d) for d in (minutes.get("decisions") or [])) if s]
+    action_items = [s for s in (_flatten_action(a) for a in (minutes.get("action_items") or [])) if s]
+
+    lines: list[str] = [f"# {title}", ""]
+    if date:
+        lines.append(f"> 会议日期：{date}")
+        lines.append("")
+    if summary:
+        lines.append("## 会议摘要")
+        lines.append("")
+        lines.append(summary)
+        lines.append("")
+    if key_points:
+        lines.append("## 讨论要点")
+        lines.append("")
+        for item in key_points:
+            lines.append(f"- {item}")
+        lines.append("")
+    if decisions:
+        lines.append("## 决策事项")
+        lines.append("")
+        for item in decisions:
+            lines.append(f"- {item}")
+        lines.append("")
+    if action_items:
+        lines.append("## 待办事项")
+        lines.append("")
+        for item in action_items:
+            lines.append(f"- {item}")
+        lines.append("")
+
+    if not (summary or key_points or decisions or action_items):
+        # Fall back to the polished/raw transcript so the KB document is never empty.
+        body = (meeting.polished_transcript or meeting.raw_transcript or "").strip()
+        if body:
+            lines.append("## 会议转录")
+            lines.append("")
+            lines.append(body)
+            lines.append("")
+
+    return "\n".join(lines).strip() + "\n"
+
+
+class KBSyncRequest(BaseModel):
+    """Request body for syncing meeting minutes to the Knowledge Base."""
+
+    project_id: Optional[str] = Field(
+        default=None,
+        description="UUID of the KB project to associate with. Optional.",
+    )
+    doc_type: Optional[str] = Field(
+        default=None,
+        description="KB doc_type override. Defaults to settings.KB_DEFAULT_DOC_TYPE.",
+    )
+
+
+@router.get("/kb/projects")
+async def list_kb_projects() -> list[dict]:
+    """Proxy KB project listing for the frontend project picker.
+
+    The frontend doesn't talk to KB directly (no need to expose JWT to
+    the browser, and avoids CORS), so we forward through the backend.
+    """
+    from backend.services.kb_client import KBClient, KBNotConfigured, KBError
+
+    try:
+        client = KBClient()
+    except KBNotConfigured as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+    try:
+        projects = await client.list_projects()
+    except KBError as exc:
+        logger.warning("KB list_projects failed: %s", exc)
+        raise HTTPException(status_code=502, detail=f"KB error: {exc}") from exc
+
+    # Trim payload to what the picker actually needs.
+    return [
+        {
+            "id": p.get("id"),
+            "name": p.get("name"),
+            "customer": p.get("customer"),
+            "industry": p.get("industry"),
+            "document_count": p.get("document_count", 0),
+        }
+        for p in projects
+        if p.get("id")
+    ]
+
+
+@router.post("/{meeting_id}/sync-kb")
+async def sync_meeting_to_kb(
+    meeting_id: int,
+    payload: KBSyncRequest,
+    db: AsyncSession = Depends(get_session),
+) -> dict:
+    """Sync a meeting's minutes (as Markdown) to the Knowledge Base.
+
+    Returns the KB ``doc_id``, an in-app KB URL and the synced timestamp.
+    Repeated calls re-upload (KB has no PUT semantics for documents);
+    each call therefore creates a new document and updates the cached
+    ``kb_doc_id`` / ``kb_url`` to the latest one.
+    """
+    from backend.services.kb_client import KBClient, KBNotConfigured, KBError
+
+    meeting = await db.get(Meeting, meeting_id)
+    if meeting is None:
+        raise HTTPException(status_code=404, detail="Meeting not found")
+
+    if meeting.status not in ("completed", "failed"):
+        # Allow syncing even for "failed" — user might have manually
+        # edited the minutes. Block only mid-pipeline states.
+        if meeting.status in ("recording", "transcribing", "processing", "polishing"):
+            raise HTTPException(
+                status_code=409,
+                detail="Meeting is still being processed; please wait until it completes.",
+            )
+
+    markdown = _build_minutes_markdown(meeting)
+    if not markdown.strip():
+        raise HTTPException(status_code=400, detail="No minutes content to sync.")
+
+    try:
+        client = KBClient()
+    except KBNotConfigured as exc:
+        raise HTTPException(status_code=503, detail=str(exc)) from exc
+
+    safe_title = (meeting.title or f"meeting-{meeting.id}").strip() or f"meeting-{meeting.id}"
+    filename = f"{safe_title}-{meeting.id}.md"
+
+    # If this meeting was synced before, remove the old KB document first
+    # so the user doesn't end up with stale duplicates piling up server-side.
+    # Failures here are non-fatal: a missing/already-deleted doc shouldn't
+    # block the new upload — we just log it.
+    replaced_old_doc = False
+    previous_doc_id = meeting.kb_doc_id
+    if previous_doc_id:
+        try:
+            await client.delete_document(previous_doc_id)
+            replaced_old_doc = True
+            logger.info(
+                "Meeting %s: deleted previous KB doc %s before re-sync",
+                meeting_id, previous_doc_id,
+            )
+        except KBError as exc:
+            logger.warning(
+                "Meeting %s: failed to delete previous KB doc %s (continuing anyway): %s",
+                meeting_id, previous_doc_id, exc,
+            )
+
+    try:
+        result = await client.upload_markdown(
+            filename=filename,
+            content=markdown,
+            project_id=payload.project_id,
+            doc_type=payload.doc_type,
+        )
+    except KBError as exc:
+        logger.warning("KB upload failed for meeting %s: %s", meeting_id, exc)
+        raise HTTPException(status_code=502, detail=f"KB upload failed: {exc}") from exc
+
+    doc_id = result.get("id")
+    doc_url = result.get("url")
+    if not doc_id:
+        raise HTTPException(status_code=502, detail="KB returned no document id")
+
+    meeting.kb_doc_id = doc_id
+    meeting.kb_url = doc_url
+    meeting.kb_synced_at = datetime.utcnow()
+    await db.commit()
+
+    logger.info("Meeting %s synced to KB doc %s", meeting_id, doc_id)
+    return {
+        "status": "success",
+        "kb_doc_id": doc_id,
+        "kb_url": doc_url,
+        "kb_synced_at": meeting.kb_synced_at,
+        "filename": result.get("filename"),
+        "kb_status": result.get("status"),
+        "replaced_old_doc": replaced_old_doc,
+        "previous_kb_doc_id": previous_doc_id if replaced_old_doc else None,
+    }
 
 
 @router.post("/{meeting_id}/sync-requirements")

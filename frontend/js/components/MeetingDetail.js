@@ -1,4 +1,4 @@
-var { Button, Tabs, Card, Space, Table, Spin, Message, Descriptions, Typography, Progress, Popconfirm, Tag, Tooltip, Dropdown, Menu, Alert, Radio } = arco;
+var { Button, Tabs, Card, Space, Table, Spin, Message, Descriptions, Typography, Progress, Popconfirm, Tag, Tooltip, Dropdown, Menu, Alert, Radio, Modal, Select, Empty, Link } = arco;
 // Robust icon recovery
 const _icons = window.arcoIcon || window.ArcoIcon || {};
 const {
@@ -36,6 +36,22 @@ function MeetingDetail({ meeting, onBack, initialTab, onTabChange }) {
     const typingTimer = React.useRef(null);
     const templateRef = React.useRef(null);
     const [exporting, setExporting] = React.useState(false);
+
+    // ----------------------------------------------------------------------
+    // KB sync state — modal-driven flow:
+    //   1. user clicks "同步到 KB" → open modal & fetch project list lazily
+    //   2. user picks a project (or skips) → POST /sync-kb
+    //   3. on success: persist returned doc id/url, show "已同步" badge
+    // ----------------------------------------------------------------------
+    const [kbModalOpen, setKbModalOpen] = React.useState(false);
+    const [kbProjects, setKbProjects] = React.useState(null); // null = not loaded yet
+    const [kbProjectsLoading, setKbProjectsLoading] = React.useState(false);
+    const [kbProjectsError, setKbProjectsError] = React.useState(null);
+    const [kbSelectedProject, setKbSelectedProject] = React.useState(() => {
+        // Remember the last picked project across sessions for convenience.
+        try { return localStorage.getItem('kb:lastProjectId') || ''; } catch (e) { return ''; }
+    });
+    const [kbSyncing, setKbSyncing] = React.useState(false);
 
     // ------------------------------------------------------------------
     // In-place edits made inside the editable template are committed to
@@ -576,6 +592,62 @@ function MeetingDetail({ meeting, onBack, initialTab, onTabChange }) {
         }
     };
 
+    // ----- KB sync handlers ------------------------------------------------
+
+    const openKbModal = async () => {
+        // Commit any in-flight edits before exporting Markdown content.
+        if (viewMode === 'edit') commitEdits();
+        setKbModalOpen(true);
+        if (kbProjects === null && !kbProjectsLoading) {
+            setKbProjectsLoading(true);
+            setKbProjectsError(null);
+            try {
+                const list = await window.api.listKbProjects();
+                setKbProjects(list || []);
+            } catch (err) {
+                setKbProjectsError(err.message || String(err));
+                setKbProjects([]);
+            } finally {
+                setKbProjectsLoading(false);
+            }
+        }
+    };
+
+    const doSyncToKb = async () => {
+        setKbSyncing(true);
+        try {
+            const res = await window.api.syncMeetingToKb(meetingData.id, {
+                project_id: kbSelectedProject || null,
+            });
+            // Persist the user's last choice for next time.
+            try {
+                if (kbSelectedProject) localStorage.setItem('kb:lastProjectId', kbSelectedProject);
+            } catch (e) {}
+            // Optimistically update local state without a full refetch.
+            setMeetingData((prev) => ({
+                ...prev,
+                kb_doc_id: res.kb_doc_id,
+                kb_url: res.kb_url,
+                kb_synced_at: res.kb_synced_at || new Date().toISOString(),
+            }));
+            Message.success({
+                content: res.replaced_old_doc
+                    ? '已重新同步到实施知识库（旧版本已替换）'
+                    : '已同步到实施知识库',
+                footer: res.kb_url ? (
+                    <Button size="mini" type="text" onClick={() => window.open(res.kb_url, '_blank')}>
+                        打开文档
+                    </Button>
+                ) : null,
+            });
+            setKbModalOpen(false);
+        } catch (err) {
+            Message.error('同步失败：' + (err.message || err));
+        } finally {
+            setKbSyncing(false);
+        }
+    };
+
     const renderEditableMinutes = () => {
         const dateStr = meetingData?.start_time
             ? new Date(meetingData.start_time).toLocaleDateString('zh-CN')
@@ -855,8 +927,25 @@ function MeetingDetail({ meeting, onBack, initialTab, onTabChange }) {
                     <span style={{ marginLeft: 12, verticalAlign: 'middle' }}>{statusBadge()}</span>
                 </Typography.Title>
 
+                <Tooltip
+                    content={
+                        meetingData.kb_synced_at
+                            ? `已于 ${new Date(meetingData.kb_synced_at).toLocaleString('zh-CN')} 同步到实施知识库`
+                            : '把会议纪要 (Markdown) 上传到实施知识库'
+                    }
+                >
+                    <Button
+                        type="primary"
+                        status={meetingData.kb_synced_at ? 'success' : undefined}
+                        onClick={openKbModal}
+                        loading={kbSyncing}
+                        disabled={!canExport}
+                    >
+                        {meetingData.kb_synced_at ? '✓ 已同步实施知识库' : '↗ 同步到实施知识库'}
+                    </Button>
+                </Tooltip>
                 <Dropdown droplist={exportMenu} position="br" trigger="click" disabled={!canExport && !meetingData.feishu_url && !meetingData.bitable_url}>
-                    <Button type="primary" icon={<IconDownload />} loading={exporting}>
+                    <Button type="outline" icon={<IconDownload />} loading={exporting}>
                         导出
                     </Button>
                 </Dropdown>
@@ -910,6 +999,73 @@ function MeetingDetail({ meeting, onBack, initialTab, onTabChange }) {
                     {renderRequirements()}
                 </TabPane>
             </Tabs>
+
+            {/* ---- KB sync Modal --------------------------------------- */}
+            <Modal
+                title={meetingData.kb_synced_at ? '重新同步到实施知识库' : '同步到实施知识库'}
+                visible={kbModalOpen}
+                onCancel={() => setKbModalOpen(false)}
+                onOk={doSyncToKb}
+                okText={kbSyncing ? '同步中...' : (meetingData.kb_synced_at ? '替换并重新同步' : '同步')}
+                cancelText="取消"
+                confirmLoading={kbSyncing}
+                okButtonProps={{ disabled: kbProjectsLoading }}
+                style={{ width: 520 }}
+            >
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                    <Typography.Paragraph style={{ marginBottom: 0, color: 'var(--ds-text-2)' }}>
+                        将本会议纪要以 <strong>Markdown</strong> 形式上传到实施知识库（自动归类为「会议纪要」）。
+                        如选择项目，文档会挂在该项目下；不选则进入未归属池。
+                    </Typography.Paragraph>
+
+                    {kbProjectsError && (
+                        <Alert
+                            type="error"
+                            content={`项目列表加载失败：${kbProjectsError}（仍可不选项目直接同步）`}
+                        />
+                    )}
+
+                    <div>
+                        <Typography.Text style={{ fontSize: 13, color: 'var(--ds-text-3)' }}>
+                            归属项目（可选）
+                        </Typography.Text>
+                        <Select
+                            allowClear
+                            showSearch
+                            placeholder="不选则不归属任何项目"
+                            value={kbSelectedProject || undefined}
+                            onChange={(v) => setKbSelectedProject(v || '')}
+                            loading={kbProjectsLoading}
+                            style={{ marginTop: 6, width: '100%' }}
+                            filterOption={(input, option) => {
+                                const txt = (option && option.props && option.props.children) || '';
+                                return String(txt).toLowerCase().includes(String(input).toLowerCase());
+                            }}
+                        >
+                            {(kbProjects || []).map((p) => (
+                                <Select.Option key={p.id} value={p.id}>
+                                    {p.name}{p.customer && p.customer !== p.name ? ` · ${p.customer}` : ''}
+                                </Select.Option>
+                            ))}
+                        </Select>
+                    </div>
+
+                    {meetingData.kb_synced_at && (
+                        <Alert
+                            type="warning"
+                            content={
+                                <Space size={4} wrap>
+                                    <span>已于 {new Date(meetingData.kb_synced_at).toLocaleString('zh-CN')} 同步过。</span>
+                                    {meetingData.kb_url && (
+                                        <Link href={meetingData.kb_url} target="_blank">查看旧文档</Link>
+                                    )}
+                                    <span>确认后会先 <strong>删除旧文档</strong>，再上传当前最新的版本。</span>
+                                </Space>
+                            }
+                        />
+                    )}
+                </div>
+            </Modal>
         </div>
     );
 }
