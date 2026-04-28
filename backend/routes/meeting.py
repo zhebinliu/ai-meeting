@@ -1757,34 +1757,6 @@ async def run_meeting_workflow(meeting_id: int, pcm_data: bytes) -> None:
                     logger.error("Error saving progress for meeting %s: %s", meeting_id, e)
                     await db.rollback()
 
-            # Serialized saving mechanism to prevent concurrent commit conflicts
-            save_lock = asyncio.Lock()
-            
-            async def safe_commit():
-                async with save_lock:
-                    try:
-                        await db.commit()
-                    except Exception as e:
-                        logger.error("Error during real-time commit: %s", e)
-                        # We don't rollback here to avoid losing session state 
-                        # for the next successful commit
-
-            def on_result(result) -> None:
-                if result.text:
-                    transcript_parts.append(result.text)
-                    # Use segment end time and total duration to update progress bar
-                    if result.duration > 0:
-                        progress = result.end / result.duration
-                        # Convert to chunks scale for the existing progress logic
-                        meeting.done_chunks = int(progress * total_chunks)
-                    
-                    meeting.raw_transcript = "\n".join(transcript_parts)
-                    
-                    # Schedule a safe commit in the background
-                    asyncio.create_task(safe_commit())
-
-            client.on_result(on_result)
-
             # Transcribe audio (real-time segments will trigger on_result)
             await client.transcribe_full(pcm_data_to_send)
 
