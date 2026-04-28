@@ -1856,37 +1856,24 @@ async def resume_meeting(
     background_tasks.add_task(run_meeting_workflow, meeting.id, pcm_data)
     return {"status": "resuming", "done_chunks": meeting.done_chunks, "total_chunks": meeting.total_chunks}
 
-async def run_manual_polish(meeting_id: int):
-    from backend.database import async_session_factory
-    async with async_session_factory() as db:
-        meeting = await db.get(Meeting, meeting_id)
-        if not meeting or not meeting.raw_transcript: return
-        pipeline = MeetingAIPipeline(openai_api_key=settings.OPENAI_API_KEY, model=settings.OPENAI_MODEL, base_url=settings.OPENAI_BASE_URL)
-        result = await pipeline.process(raw_transcript=meeting.raw_transcript, meeting_title=meeting.title)
-        meeting.polished_transcript = result.get("polished_transcript", "")
-        meeting.status = "completed"
-        await db.commit()
+async def _save_pipeline_result(db, meeting, meeting_id: int, result: dict) -> None:
+    """Persist all outputs from a pipeline run (polish + minutes + stakeholders + requirements).
 
-async def run_manual_summarize(meeting_id: int):
-    from backend.database import async_session_factory
-    async with async_session_factory() as db:
-        meeting = await db.get(Meeting, meeting_id)
-        if not meeting or not meeting.raw_transcript: return
-        pipeline = MeetingAIPipeline(openai_api_key=settings.OPENAI_API_KEY, model=settings.OPENAI_MODEL, base_url=settings.OPENAI_BASE_URL)
-        result = await pipeline.process(raw_transcript=meeting.raw_transcript, meeting_title=meeting.title)
-        meeting.meeting_minutes = json.dumps(result.get("meeting_minutes", {}), ensure_ascii=False)
-        meeting.status = "completed"
-        await db.commit()
+    The pipeline always produces every artifact in one pass, so manual
+    re-runs save everything and don't waste the work that already happened.
+    """
+    meeting.polished_transcript = result.get("polished_transcript", "") or meeting.polished_transcript
+    minutes_obj = result.get("meeting_minutes")
+    if minutes_obj:
+        meeting.meeting_minutes = json.dumps(minutes_obj, ensure_ascii=False)
+    stakeholder_obj = result.get("stakeholder_map")
+    if stakeholder_obj:
+        meeting.stakeholder_map = json.dumps(stakeholder_obj, ensure_ascii=False)
 
-async def run_manual_extract(meeting_id: int):
-    from backend.database import async_session_factory
-    async with async_session_factory() as db:
-        meeting = await db.get(Meeting, meeting_id)
-        if not meeting or not meeting.raw_transcript: return
-        pipeline = MeetingAIPipeline(openai_api_key=settings.OPENAI_API_KEY, model=settings.OPENAI_MODEL, base_url=settings.OPENAI_BASE_URL)
-        result = await pipeline.process(raw_transcript=meeting.raw_transcript, meeting_title=meeting.title)
+    reqs = result.get("requirements") or []
+    if reqs:
         await db.execute(sql_delete(Requirement).where(Requirement.meeting_id == meeting_id))
-        for idx, req in enumerate(result.get("requirements", [])):
+        for idx, req in enumerate(reqs):
             db.add(Requirement(
                 meeting_id=meeting_id,
                 req_id=req.get("id", f"REQ-{idx + 1:03d}"),
@@ -1897,8 +1884,44 @@ async def run_manual_extract(meeting_id: int):
                 speaker=req.get("speaker", ""),
                 status="待确认",
             ))
-        meeting.status = "completed"
+
+    meeting.status = "completed"
+    await db.commit()
+
+
+async def _run_manual_pipeline(meeting_id: int) -> None:
+    """Shared body for the three manual rerun endpoints. Pipeline always
+    produces polish + minutes + requirements + stakeholders together,
+    so we run it once and save everything regardless of which button
+    the user clicked."""
+    from backend.database import async_session_factory
+    async with async_session_factory() as db:
+        meeting = await db.get(Meeting, meeting_id)
+        if not meeting or not meeting.raw_transcript:
+            return
+        meeting.status = "polishing"
         await db.commit()
+        try:
+            pipeline = MeetingAIPipeline(
+                openai_api_key=settings.OPENAI_API_KEY,
+                model=settings.OPENAI_MODEL,
+                base_url=settings.OPENAI_BASE_URL or None,
+            )
+            result = await pipeline.process(
+                raw_transcript=meeting.raw_transcript,
+                meeting_title=meeting.title,
+                meeting_id=meeting_id,
+            )
+            await _save_pipeline_result(db, meeting, meeting_id, result)
+        except Exception:
+            logger.exception("Manual pipeline failed for meeting %s", meeting_id)
+            meeting.status = "failed"
+            await db.commit()
+
+
+run_manual_polish = _run_manual_pipeline
+run_manual_summarize = _run_manual_pipeline
+run_manual_extract = _run_manual_pipeline
 
 @router.post("/{meeting_id}/actions/polish")
 async def manual_polish(
