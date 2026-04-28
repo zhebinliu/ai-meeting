@@ -160,6 +160,16 @@ function MeetingDetail({ meeting, onBack, initialTab, onTabChange }) {
         if (onTabChange) onTabChange(key);
     };
 
+    // Sync activeTab when the URL hash changes externally (back/forward
+    // button, deep link, hashchange after first mount). React doesn't
+    // remount the component because parent passes key={meetingId}, so
+    // useState initializer only runs once and the URL gets out of sync.
+    React.useEffect(() => {
+        if (initialTab && VALID_TABS.has(initialTab) && initialTab !== activeTab) {
+            setActiveTab(initialTab);
+        }
+    }, [initialTab]);
+
     // Auto-scroll logic: only scroll if the user is near bottom or we just typed
     const scrollToBottom = (behavior = 'smooth') => {
         if (scrollRef.current) {
