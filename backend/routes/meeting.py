@@ -77,6 +77,7 @@ class MeetingOut(BaseModel):
     polished_transcript: str
     meeting_minutes: str
     status: str
+    asr_engine: Optional[str] = None
     total_chunks: int = 0
     done_chunks: int = 0
     feishu_url: Optional[str] = None
@@ -107,7 +108,6 @@ class RequirementOut(BaseModel):
     source: str
     speaker: str
     status: str
-    asr_engine: Optional[str] = None
     created_at: datetime
 
     model_config = {"from_attributes": True}

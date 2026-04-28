@@ -419,17 +419,20 @@ function MeetingDetail({ meeting, onBack, initialTab, onTabChange }) {
         return (
             <div className="transcript-root">
                 {raw && (
-                    <Card title="实时转写预览 (Raw)" bordered={false} style={{ marginBottom: 16 }}>
-                        <div 
+                    <Card title="实时转写预览 (Raw)" bordered={false} style={{ marginBottom: 16, overflow: 'hidden' }}>
+                        <div
                             ref={scrollRef}
-                            style={{ 
-                                background: 'var(--color-fill-2)', 
-                                padding: 16, 
-                                borderRadius: 4, 
-                                whiteSpace: 'pre-wrap', 
-                                color: 'var(--color-text-2)', 
-                                maxHeight: 400, 
+                            style={{
+                                background: 'var(--color-fill-2)',
+                                padding: 16,
+                                borderRadius: 4,
+                                whiteSpace: 'pre-wrap',
+                                wordBreak: 'break-word',
+                                overflowWrap: 'anywhere',
+                                color: 'var(--color-text-2)',
+                                maxHeight: 400,
                                 overflowY: 'auto',
+                                overflowX: 'hidden',
                                 position: 'relative'
                             }}
                         >
@@ -437,19 +440,20 @@ function MeetingDetail({ meeting, onBack, initialTab, onTabChange }) {
                             {meetingData.status === 'transcribing' && <span className="typewriter-cursor">|</span>}
                         </div>
                         {meetingData.status === 'transcribing' && (
-                            <div style={{ marginTop: 16 }}>
-                                <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
-                                    <Typography.Text type="secondary">
+                            <div style={{ marginTop: 16, minWidth: 0 }}>
+                                <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 8, minWidth: 0 }}>
+                                    <Typography.Text type="secondary" style={{ flex: 1, minWidth: 0, whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' }}>
                                         <Spin size="small" style={{ marginRight: 8 }} />
                                         {asrLabel} 正在持续转写中...
                                     </Typography.Text>
-                                    <Typography.Text type="secondary">
-                                        进度: {meetingData.done_chunks || 0} / {meetingData.total_chunks || 0}
+                                    <Typography.Text type="secondary" style={{ flexShrink: 0, fontVariantNumeric: 'tabular-nums', fontSize: 12 }}>
+                                        {meetingData.done_chunks || 0} / {meetingData.total_chunks || 0} ({meetingData.total_chunks ? Math.floor((meetingData.done_chunks / meetingData.total_chunks) * 100) : 0}%)
                                     </Typography.Text>
                                 </div>
-                                <Progress 
-                                    percent={meetingData.total_chunks ? Math.floor((meetingData.done_chunks / meetingData.total_chunks) * 100) : 0} 
+                                <Progress
+                                    percent={meetingData.total_chunks ? Math.floor((meetingData.done_chunks / meetingData.total_chunks) * 100) : 0}
                                     status={meetingData.done_chunks >= meetingData.total_chunks ? 'success' : 'active'}
+                                    showText={false}
                                 />
                             </div>
                         )}
