@@ -545,6 +545,19 @@ body {
     flex-wrap: wrap;
 }
 
+/* Meeting detail — tabs as a white surface card, consistent with stat cards above */
+.meeting-detail .arco-tabs {
+    background: var(--ds-surface);
+    border: 1px solid var(--ds-line);
+    border-radius: var(--ds-radius-lg);
+    box-shadow: var(--ds-shadow-sm);
+    overflow: hidden;
+}
+.meeting-detail .arco-tabs-content-inner {
+    background: var(--ds-surface);
+    padding: 16px;
+}
+
 /* Minutes tab DS sections */
 .ds-minutes-section {
     background: var(--ds-surface);
@@ -552,6 +565,7 @@ body {
     border-radius: var(--ds-radius-lg);
     overflow: hidden;
     margin-bottom: 12px;
+    box-shadow: var(--ds-shadow-sm);
 }
 .ds-minutes-section-title {
     font-size: 13px;
