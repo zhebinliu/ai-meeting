@@ -20,7 +20,7 @@ class Settings:
     # --- AI Model ---
     OPENAI_API_KEY: str = os.getenv("OPENAI_API_KEY", "")
     OPENAI_BASE_URL: str = os.getenv("OPENAI_BASE_URL", "")
-    OPENAI_MODEL: str = os.getenv("OPENAI_MODEL", "mimo-v2-pro")
+    OPENAI_MODEL: str = os.getenv("OPENAI_MODEL", "mimo-v2.5-pro")
     XIAOMI_OMNI_MODEL: str = os.getenv("XIAOMI_OMNI_MODEL", "mimo-v2-omni")
 
     # --- ASR Selection ---
