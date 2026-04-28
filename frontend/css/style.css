@@ -660,6 +660,25 @@ body {
     margin-left: 8px;
 }
 
+/* Stakeholder graph (vis-network) container */
+.stakeholder-graph-wrap {
+    background: var(--ds-surface);
+    border: 1px solid var(--ds-line);
+    border-radius: var(--ds-radius-lg);
+    padding: 16px;
+    box-shadow: var(--ds-shadow-sm);
+}
+.stakeholder-graph-canvas {
+    height: 560px;
+    width: 100%;
+    border-radius: var(--ds-radius);
+    background: var(--ds-line-soft);
+    overflow: hidden;
+}
+@media (max-height: 800px) {
+    .stakeholder-graph-canvas { height: 480px; }
+}
+
 /* Recording indicator & typewriter cursor (kept from previous stylesheet) */
 .pulse-dot {
     animation: pulse 1.4s ease-in-out infinite;
