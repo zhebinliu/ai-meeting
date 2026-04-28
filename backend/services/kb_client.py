@@ -243,6 +243,52 @@ class KBClient:
             data["url"] = f"{self.base_url}/documents/{doc_id}"
         return data
 
+    async def list_project_documents(self, project_id: str) -> list[dict[str, Any]]:
+        """Return all documents that belong to ``project_id``.
+
+        Items are summaries (no body) — use :py:meth:`get_document` to
+        fetch the actual ``markdown_content`` for each.
+        """
+        if not project_id:
+            return []
+        resp = await self._request(
+            "GET", f"/api/projects/{project_id}/documents"
+        )
+        if resp.status_code == 404:
+            return []
+        if resp.status_code != 200:
+            raise KBError(
+                f"KB list_project_documents failed: HTTP {resp.status_code} – {resp.text[:200]}"
+            )
+        try:
+            data = resp.json()
+        except ValueError as exc:
+            raise KBError("KB list_project_documents returned non-JSON") from exc
+        if isinstance(data, dict) and "items" in data:
+            data = data["items"]
+        return list(data) if isinstance(data, list) else []
+
+    async def get_document(self, doc_id: str) -> dict[str, Any] | None:
+        """Fetch a single document detail.
+
+        Returns the raw KB payload which includes ``markdown_content``,
+        ``summary`` and ``faq`` fields; or ``None`` if the doc no longer
+        exists. Other errors raise :class:`KBError`.
+        """
+        if not doc_id:
+            return None
+        resp = await self._request("GET", f"/api/documents/{doc_id}")
+        if resp.status_code == 404:
+            return None
+        if resp.status_code != 200:
+            raise KBError(
+                f"KB get_document failed: HTTP {resp.status_code} – {resp.text[:200]}"
+            )
+        try:
+            return resp.json()
+        except ValueError as exc:
+            raise KBError("KB get_document returned non-JSON") from exc
+
     async def delete_document(self, doc_id: str) -> bool:
         """Delete a previously uploaded document by its KB UUID.
 

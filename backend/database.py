@@ -48,6 +48,13 @@ async def _ensure_columns(conn) -> None:  # type: ignore[no-untyped-def]
         ("meetings", "kb_doc_id", "VARCHAR(64)"),
         ("meetings", "kb_url", "TEXT"),
         ("meetings", "kb_synced_at", "DATETIME"),
+        # KB project association + stakeholder graph (added 2026-04-28)
+        ("meetings", "kb_project_id", "VARCHAR(64)"),
+        ("meetings", "kb_project_name", "VARCHAR(256)"),
+        ("meetings", "stakeholder_map", "TEXT"),
+        ("meetings", "stakeholder_kb_doc_id", "VARCHAR(64)"),
+        ("meetings", "stakeholder_kb_url", "TEXT"),
+        ("meetings", "stakeholder_kb_synced_at", "DATETIME"),
     ]
     for table, column, ddl_type in additions:
         try:

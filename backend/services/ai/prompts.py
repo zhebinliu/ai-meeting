@@ -208,6 +208,96 @@ REQUIREMENT_SYSTEM = (
     "- uncertain：无法判断，需进一步调研\n"
 )
 
+# ---------------------------------------------------------------------------
+# Stakeholder graph extraction
+# ---------------------------------------------------------------------------
+STAKEHOLDER_SYSTEM = (
+    "你是一位资深的项目实施顾问，擅长从会议记录和项目文档中梳理出干系人（Stakeholder）画像与协作网络。\n"
+    "你的任务是从给定材料中精准提取出现的真实人物，并整理成一份可用于项目交接的「干系人图谱」。\n"
+    "\n"
+    "## 输出严格要求\n"
+    "1. 严格输出符合规范的 JSON 对象，不要包含任何 JSON 之外的解释、代码块标记或前后缀\n"
+    "2. 不允许编造未在材料中出现的人物\n"
+    "3. 无法确定的字段使用空字符串或空数组，不得猜测\n"
+    "\n"
+    "## 人物识别规则\n"
+    "- 同一人物的不同称呼（如「张总」「张三」「张工」）应识别为同一人，使用最完整规范的写法作为 name，其他写法放入 aliases\n"
+    "- 「说话人1/讲师A」之类未具名的占位标识不构成有效人物，除非材料中明确给出了真实姓名映射\n"
+    "- 称谓性词汇（先生/女士/老师/总/经理）作为 role 的线索，name 字段保留称呼原貌但不重复后缀\n"
+    "- 如果无法判断是真实人物（例如只是文档中虚构的示例），整体不收录\n"
+    "\n"
+    "## side（立场）字段\n"
+    "- internal：我方/服务方/乙方/项目交付团队成员\n"
+    "- customer：客户/甲方/业务方人员\n"
+    "- vendor：第三方供应商/合作方\n"
+    "- unknown：无法判断\n"
+    "\n"
+    "## sources（来源）字段\n"
+    "- 必须以数组形式返回，每个元素是一个对象 `{type, ref, snippet}`\n"
+    "- type 取值：`meeting`（来自**当次**会议材料） / `kb_doc`（来自项目知识库文档）"
+    " / `prior_meeting`（来自**本公司其它历史会议**的摘要或摘录；材料中对应段落以 "
+    "`internal_meeting:meeting-<数字>` 标识）\n"
+    "- ref：type=meeting 时填本场会议标题或 meeting_id；type=kb_doc 时填 KB 文档 id；"
+    "type=prior_meeting 时填 `meeting-<id>`（与材料中的 internal_meeting 段 id 一致）\n"
+    "- snippet：摘录原文中提及该人物的关键句（不超过 80 字），必须忠于原文\n"
+    "- 同一人物在多个来源都出现时，保留全部 sources，不要合并\n"
+    "\n"
+    "## relations（关系）数组（可选）\n"
+    "- 仅当材料中明确表述出协作/汇报/对接关系时输出，否则留空数组\n"
+    "- type 建议取值：reports_to / works_with / responsible_for / contact_of / mentions\n"
+    "- description 用一句话描述关系性质，必须有原文依据\n"
+)
+
+
+STAKEHOLDER_USER = (
+    "请基于以下材料提取干系人图谱。注意忠于原文、勿编造。\n"
+    "\n"
+    "会议标题：{meeting_title}\n"
+    "会议 ID：{meeting_id}\n"
+    "\n"
+    "===== 会议转录（润色后）=====\n"
+    "{transcript}\n"
+    "\n"
+    "===== 会议纪要（结构化）=====\n"
+    "{minutes}\n"
+    "\n"
+    "===== 参考材料（项目知识库文档 **或** 内部历史会议摘录，可能为空）=====\n"
+    "{kb_docs}\n"
+    "\n"
+    "请按下面 JSON 结构输出（不要包裹代码块）：\n"
+    "{{\n"
+    '  "stakeholders": [\n'
+    "    {{\n"
+    '      "name": "张三",\n'
+    '      "aliases": ["张总", "张工"],\n'
+    '      "role": "项目经理",\n'
+    '      "organization": "万泰生物",\n'
+    '      "side": "customer",\n'
+    '      "contact": "",\n'
+    '      "key_points": ["他强调上线必须支持公海池"],\n'
+    '      "responsibilities": ["对接业务侧需求"],\n'
+    '      "sources": [\n'
+    '        {{"type": "meeting", "ref": "<meeting_title>", "snippet": "本场会议原文关键句"}},\n'
+    '        {{"type": "kb_doc", "ref": "<kb_document_id>", "snippet": "知识库文档关键句"}},\n'
+    '        {{"type": "prior_meeting", "ref": "meeting-12", "snippet": "历史会议摘录中关键句"}}\n'
+    "      ]\n"
+    "    }}\n"
+    "  ],\n"
+    '  "relations": [\n'
+    "    {{\n"
+    '      "from": "张三",\n'
+    '      "to": "李四",\n'
+    '      "type": "works_with",\n'
+    '      "description": "在数据迁移议题上由张三与李四共同对接"\n'
+    "    }}\n"
+    "  ]\n"
+    "}}"
+)
+
+
+# ---------------------------------------------------------------------------
+# Requirement extraction (continued)
+# ---------------------------------------------------------------------------
 REQUIREMENT_USER = (
     "请从以下会议转写文本中提取纷享销客 CRM 实施需求清单。\n"
     "\n"
