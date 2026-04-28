@@ -555,7 +555,13 @@ body {
 }
 .meeting-detail .arco-tabs-content-inner {
     background: var(--ds-surface);
-    padding: 16px;
+    padding: 0;
+}
+/* Padding lives on the active pane so Arco's odd 1228px inner-width
+   doesn't push content past the parent's right edge. */
+.meeting-detail .arco-tabs-content-item {
+    box-sizing: border-box;
+    padding: 16px 20px;
 }
 
 /* Minutes tab DS sections */
