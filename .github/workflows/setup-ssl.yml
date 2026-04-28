@@ -12,7 +12,7 @@ on:
         required: false
         default: "liu@zheb.in"
       dry_run:
-        description: "Dry run — 仅验证流程，不真正申请证书"
+        description: "Dry run — 仅验证，不真正申请证书"
         type: boolean
         default: false
 
@@ -23,6 +23,9 @@ jobs:
     timeout-minutes: 10
 
     steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
       - name: Setup SSH key
         env:
           SSH_PRIVATE_KEY: ${{ secrets.DEPLOY_SSH_KEY }}
@@ -38,87 +41,54 @@ jobs:
           SSH_USER: ${{ secrets.DEPLOY_USER }}
           SSH_HOST: ${{ secrets.DEPLOY_HOST }}
         run: |
-          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no "$SSH_USER@$SSH_HOST" bash << 'ENDSSH'
-          echo "=== Active nginx configs ==="
-          sudo nginx -T 2>/dev/null | grep -E "server_name|listen|ssl" | head -30 || true
-          echo "=== Open ports ==="
-          ss -tlnp | grep nginx || true
-          ENDSSH
+          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no \
+            "$SSH_USER@$SSH_HOST" \
+            "sudo nginx -T 2>/dev/null | grep -E 'server_name|listen|ssl_cert' | head -30; echo '---'; ss -tlnp | grep nginx || true"
 
       - name: Install certbot
         env:
           SSH_USER: ${{ secrets.DEPLOY_USER }}
           SSH_HOST: ${{ secrets.DEPLOY_HOST }}
         run: |
-          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no "$SSH_USER@$SSH_HOST" bash << 'ENDSSH'
-          set -e
-          if ! command -v certbot &>/dev/null; then
-            echo "Installing certbot..."
-            sudo apt-get update -q
-            sudo apt-get install -y certbot python3-certbot-nginx
-          else
-            echo "certbot $(certbot --version 2>&1) already installed"
-          fi
-          ENDSSH
+          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no \
+            "$SSH_USER@$SSH_HOST" \
+            "command -v certbot || (sudo apt-get update -q && sudo apt-get install -y certbot python3-certbot-nginx)"
 
-      - name: Ensure server_name is set in nginx config
+      - name: Deploy nginx config if server_name not set
         env:
           SSH_USER: ${{ secrets.DEPLOY_USER }}
           SSH_HOST: ${{ secrets.DEPLOY_HOST }}
+          SSH_HOST_RAW: ${{ secrets.DEPLOY_HOST }}
           DOMAIN: ${{ inputs.domain }}
           REMOTE_DIR: ${{ secrets.DEPLOY_REMOTE_DIR }}
         run: |
-          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no "$SSH_USER@$SSH_HOST" \
-            DOMAIN="$DOMAIN" REMOTE_DIR="$REMOTE_DIR" bash << 'ENDSSH'
-          set -e
-          CONF="/etc/nginx/sites-available/meeting-ai"
+          # Check if the domain is already in nginx config
+          HAS_DOMAIN=$(ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no \
+            "$SSH_USER@$SSH_HOST" \
+            "sudo nginx -T 2>/dev/null | grep -c 'server_name.*$DOMAIN' || true")
 
-          # Check if our domain is already in any nginx config
-          if sudo nginx -T 2>/dev/null | grep -q "server_name.*$DOMAIN"; then
-            echo "✓ server_name $DOMAIN already present in nginx config"
-            exit 0
+          if [ "${HAS_DOMAIN:-0}" -gt 0 ]; then
+            echo "server_name $DOMAIN already present — skipping nginx config update"
+          else
+            echo "Deploying nginx config for $DOMAIN..."
+            # Substitute placeholders in template
+            sed "s|__DOMAIN__|$DOMAIN|g; s|__ROOT_DIR__|$REMOTE_DIR|g" \
+              nginx/meeting-ai.conf > /tmp/meeting-ai-rendered.conf
+
+            # Copy to server
+            scp -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no \
+              /tmp/meeting-ai-rendered.conf \
+              "$SSH_USER@$SSH_HOST:/tmp/meeting-ai.conf"
+
+            # Install into nginx
+            ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no \
+              "$SSH_USER@$SSH_HOST" \
+              "sudo mv /tmp/meeting-ai.conf /etc/nginx/sites-available/meeting-ai && \
+               sudo ln -sf /etc/nginx/sites-available/meeting-ai /etc/nginx/sites-enabled/meeting-ai && \
+               sudo nginx -t && sudo systemctl reload nginx && echo 'nginx config deployed'"
           fi
 
-          echo "server_name $DOMAIN not found — creating/updating $CONF"
-          sudo tee "$CONF" > /dev/null << NGINXEOF
-server {
-    listen 80;
-    server_name $DOMAIN;
-    client_max_body_size 1024M;
-
-    location / {
-        root $REMOTE_DIR/frontend;
-        index index.html;
-        try_files \$uri \$uri/ /index.html;
-    }
-
-    location /api/ {
-        proxy_pass http://127.0.0.1:8001/api/;
-        proxy_set_header Host \$host;
-        proxy_set_header X-Real-IP \$remote_addr;
-        proxy_set_header X-Forwarded-For \$proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto \$scheme;
-        proxy_read_timeout 600s;
-        proxy_connect_timeout 600s;
-    }
-
-    location /ws {
-        proxy_pass http://127.0.0.1:8001;
-        proxy_http_version 1.1;
-        proxy_set_header Upgrade \$http_upgrade;
-        proxy_set_header Connection "upgrade";
-        proxy_set_header Host \$host;
-        proxy_read_timeout 3600s;
-    }
-}
-NGINXEOF
-          sudo ln -sf "$CONF" /etc/nginx/sites-enabled/meeting-ai
-          sudo nginx -t
-          sudo systemctl reload nginx
-          echo "✓ nginx config created and reloaded"
-          ENDSSH
-
-      - name: Obtain SSL certificate via certbot --nginx
+      - name: Obtain SSL certificate
         env:
           SSH_USER: ${{ secrets.DEPLOY_USER }}
           SSH_HOST: ${{ secrets.DEPLOY_HOST }}
@@ -126,44 +96,31 @@ NGINXEOF
           EMAIL: ${{ inputs.email }}
           DRY_RUN: ${{ inputs.dry_run }}
         run: |
-          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no "$SSH_USER@$SSH_HOST" \
-            DOMAIN="$DOMAIN" EMAIL="$EMAIL" DRY_RUN="$DRY_RUN" bash << 'ENDSSH'
-          set -e
           DRY_FLAG=""
-          [ "$DRY_RUN" = "true" ] && DRY_FLAG="--dry-run"
+          if [ "$DRY_RUN" = "true" ]; then DRY_FLAG="--dry-run"; fi
 
-          sudo certbot --nginx \
-            --non-interactive \
-            --agree-tos \
-            --email "$EMAIL" \
-            -d "$DOMAIN" \
-            --redirect \
-            $DRY_FLAG
+          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no \
+            "$SSH_USER@$SSH_HOST" \
+            "sudo certbot --nginx \
+              --non-interactive --agree-tos \
+              --email '$EMAIL' \
+              -d '$DOMAIN' \
+              --redirect \
+              $DRY_FLAG"
 
-          echo "✓ Certificate obtained and nginx updated"
-          ENDSSH
-
-      - name: Setup auto-renewal
-        if: ${{ inputs.dry_run == false }}
+      - name: Enable auto-renewal
+        if: ${{ inputs.dry_run != true }}
         env:
           SSH_USER: ${{ secrets.DEPLOY_USER }}
           SSH_HOST: ${{ secrets.DEPLOY_HOST }}
         run: |
-          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no "$SSH_USER@$SSH_HOST" bash << 'ENDSSH'
-          # systemd timer (preferred on Ubuntu 20+)
-          if systemctl list-unit-files certbot.timer &>/dev/null; then
-            sudo systemctl enable --now certbot.timer
-            echo "✓ certbot.timer enabled (systemd auto-renewal)"
-          else
-            # Fallback: cron
-            if ! crontab -l 2>/dev/null | grep -q 'certbot renew'; then
-              (crontab -l 2>/dev/null; echo "0 3,15 * * * sudo certbot renew --quiet --deploy-hook 'systemctl reload nginx'") | crontab -
-              echo "✓ certbot renew cron added"
-            else
-              echo "✓ certbot renew cron already exists"
-            fi
-          fi
-          ENDSSH
+          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no \
+            "$SSH_USER@$SSH_HOST" \
+            "systemctl list-unit-files certbot.timer &>/dev/null \
+              && sudo systemctl enable --now certbot.timer \
+              || (crontab -l 2>/dev/null | grep -q 'certbot renew' \
+                  || (crontab -l 2>/dev/null; echo '0 3,15 * * * sudo certbot renew --quiet --deploy-hook systemctl reload nginx') | crontab -); \
+             echo 'auto-renewal configured'"
 
       - name: Final status
         env:
@@ -171,17 +128,11 @@ NGINXEOF
           SSH_HOST: ${{ secrets.DEPLOY_HOST }}
           DOMAIN: ${{ inputs.domain }}
         run: |
-          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no "$SSH_USER@$SSH_HOST" \
-            DOMAIN="$DOMAIN" bash << 'ENDSSH'
-          echo "=== Certificate Status ==="
-          sudo certbot certificates 2>/dev/null | grep -A6 "$DOMAIN" || echo "(dry run)"
-          echo ""
-          echo "=== nginx status ==="
-          sudo systemctl is-active nginx && echo "nginx: active" || echo "nginx: INACTIVE"
-          echo ""
-          echo "=== Listening ports ==="
-          ss -tlnp | grep -E ':80|:443' || true
-          ENDSSH
+          ssh -i ~/.ssh/deploy_key -o StrictHostKeyChecking=no \
+            "$SSH_USER@$SSH_HOST" \
+            "echo '=== Cert ==='; sudo certbot certificates 2>/dev/null | grep -A5 '$DOMAIN' || echo '(dry-run, no cert)'; \
+             echo '=== nginx ==='; sudo systemctl is-active nginx; \
+             echo '=== Ports ==='; ss -tlnp | grep -E ':80|:443' || true"
 
       - name: Cleanup SSH key
         if: always()
