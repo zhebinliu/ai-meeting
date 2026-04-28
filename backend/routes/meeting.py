@@ -1622,10 +1622,10 @@ async def upload_audio(
     # Create meeting record immediately with 'transcribing' status
     meeting_title = title.strip() or filename
     meeting = Meeting(
-        title=meeting_title, 
-        start_time=datetime.utcnow(), 
+        title=meeting_title,
+        start_time=datetime.utcnow(),
         status="transcribing",
-        asr_engine="whisper"
+        asr_engine=asr_engine,
     )
     db.add(meeting)
     await db.commit()
@@ -1700,28 +1700,30 @@ async def run_meeting_workflow(meeting_id: int, pcm_data: bytes) -> None:
                     model=settings.XIAOMI_OMNI_MODEL,
                 )
 
-            # Pre-calculate chunks for progress bar and indexing
+            # Pre-calculate PCM chunks for Xiaomi streaming (Whisper segments are variable)
             chunk_seconds = 20 if meeting.asr_engine == "xiaomi" else 10
             chunk_size = 16000 * 2 * chunk_seconds
             total_chunks = (len(pcm_data) + chunk_size - 1) // chunk_size
-            
-            # Use pre-allocated list to handle concurrent results out of order
+
+            # Dynamic list: Xiaomi pre-allocates by PCM chunk count;
+            # Whisper produces a variable number of segments, so we grow on demand.
             transcript_parts: list[str] = [""] * total_chunks
             save_lock = asyncio.Lock()
-            loop = asyncio.get_event_loop()
-            
+            loop = asyncio.get_running_loop()
+            asr_tasks: list[asyncio.Task] = []
+
             async def on_asr_result(result):
                 async with save_lock:
                     idx = getattr(result, 'index', 0)
-                    if 0 <= idx < total_chunks:
-                        transcript_parts[idx] = result.text
-                    
-                    # Update meeting status
+                    # Grow list to accommodate Whisper's variable segment count
+                    while idx >= len(transcript_parts):
+                        transcript_parts.append("")
+                    transcript_parts[idx] = result.text
+
                     async for db_retry in get_session():
                         try:
                             m = await db_retry.get(Meeting, meeting_id)
                             m.done_chunks += 1
-                            # Join only non-empty parts, but in order
                             m.raw_transcript = " ".join([p for p in transcript_parts if p])
                             await db_retry.commit()
                             break
@@ -1729,40 +1731,35 @@ async def run_meeting_workflow(meeting_id: int, pcm_data: bytes) -> None:
                             logger.error("DB Update Error during ASR callback: %s", e)
                             await db_retry.rollback()
 
-            client.on_result(lambda r: loop.call_soon_threadsafe(
-                lambda: asyncio.create_task(on_asr_result(r))
-            ))
+            def _schedule_result(r):
+                task = asyncio.create_task(on_asr_result(r))
+                asr_tasks.append(task)
+
+            client.on_result(lambda r: loop.call_soon_threadsafe(_schedule_result, r))
             meeting.total_chunks = total_chunks
-            
-            # ... (Existing breakpoint resume logic) ...
+
             start_chunk_idx = meeting.done_chunks
             if start_chunk_idx > 0 and start_chunk_idx < total_chunks:
                 logger.info("Meeting %s: Resuming from chunk %d/%d", meeting_id, start_chunk_idx, total_chunks)
                 start_byte = start_chunk_idx * chunk_size
                 pcm_data_to_send = pcm_data[start_byte:]
                 if meeting.raw_transcript:
-                    transcript_parts = meeting.raw_transcript.split("\n")
+                    transcript_parts[:] = meeting.raw_transcript.split(" ")
             else:
                 pcm_data_to_send = pcm_data
                 meeting.done_chunks = 0
                 await db.commit()
 
-            async def save_progress(chunk_idx: int):
-                """Helper to sync partial transcript and progress to DB."""
-                try:
-                    meeting.raw_transcript = "\n".join(transcript_parts)
-                    meeting.done_chunks = min(chunk_idx + 1, total_chunks)
-                    await db.commit()
-                except Exception as e:
-                    logger.error("Error saving progress for meeting %s: %s", meeting_id, e)
-                    await db.rollback()
-
-            # Transcribe audio (real-time segments will trigger on_result)
+            # Transcribe audio (real-time segments will trigger on_result callbacks)
             await client.transcribe_full(pcm_data_to_send)
 
+            # Wait for all on_asr_result tasks to finish before reading transcript_parts
+            if asr_tasks:
+                await asyncio.gather(*asr_tasks, return_exceptions=True)
+
             # Final save and finish ASR stage
-            meeting.raw_transcript = "\n".join(transcript_parts)
-            meeting.done_chunks = total_chunks
+            meeting.raw_transcript = " ".join([p for p in transcript_parts if p])
+            meeting.done_chunks = len([p for p in transcript_parts if p])
             meeting.end_time = datetime.utcnow()
             await db.commit()
 

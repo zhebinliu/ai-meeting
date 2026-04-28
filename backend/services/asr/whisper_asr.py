@@ -10,12 +10,13 @@ logger = logging.getLogger(__name__)
 
 class RecognitionResult:
     """ASR recognition result compatible with the existing pipeline."""
-    def __init__(self, text: str, is_final: bool = True, start: float = 0, end: float = 0, duration: float = 0):
+    def __init__(self, text: str, is_final: bool = True, start: float = 0, end: float = 0, duration: float = 0, index: int = 0):
         self.text = text
         self.is_final = is_final
         self.start = start
         self.end = end
         self.duration = duration
+        self.index = index
 
 class WhisperASRClient:
     """ASR Client using Faster-Whisper local model."""
@@ -81,16 +82,16 @@ class WhisperASRClient:
         segments, info = model.transcribe(audio_path, beam_size=3, language="zh")
         
         duration = info.duration
-        for segment in segments:
+        for idx, segment in enumerate(segments):
             text = segment.text.strip()
             if text and self._result_callback:
                 result = RecognitionResult(
-                    text=text, 
-                    start=segment.start, 
-                    end=segment.end, 
-                    duration=duration
+                    text=text,
+                    start=segment.start,
+                    end=segment.end,
+                    duration=duration,
+                    index=idx,
                 )
-                # Thread-safe callback to the main loop
                 loop.call_soon_threadsafe(self._result_callback, result)
 
     async def close(self):
