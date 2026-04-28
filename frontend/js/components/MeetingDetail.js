@@ -17,6 +17,32 @@ const {
 } = _icons;
 var TabPane = Tabs.TabPane;
 
+const SvgCalendar = () => React.createElement('svg', { width: 16, height: 16, viewBox: '0 0 16 16', fill: 'none' },
+    React.createElement('rect', { x: 1, y: 3, width: 14, height: 11, rx: 2, stroke: 'currentColor', strokeWidth: 1.5 }),
+    React.createElement('path', { d: 'M5 1V4M11 1V4', stroke: 'currentColor', strokeWidth: 1.5, strokeLinecap: 'round' }),
+    React.createElement('path', { d: 'M1 7H15', stroke: 'currentColor', strokeWidth: 1.5 })
+);
+const SvgClock = () => React.createElement('svg', { width: 16, height: 16, viewBox: '0 0 16 16', fill: 'none' },
+    React.createElement('circle', { cx: 8, cy: 8, r: 6.5, stroke: 'currentColor', strokeWidth: 1.5 }),
+    React.createElement('path', { d: 'M8 5V8.5L10.5 10', stroke: 'currentColor', strokeWidth: 1.5, strokeLinecap: 'round', strokeLinejoin: 'round' })
+);
+const SvgDoc = () => React.createElement('svg', { width: 16, height: 16, viewBox: '0 0 16 16', fill: 'none' },
+    React.createElement('rect', { x: 2, y: 1.5, width: 12, height: 13, rx: 1.5, stroke: 'currentColor', strokeWidth: 1.5 }),
+    React.createElement('path', { d: 'M5 5.5H11M5 8H11M5 10.5H9', stroke: 'currentColor', strokeWidth: 1.5, strokeLinecap: 'round' })
+);
+const SvgTask = () => React.createElement('svg', { width: 16, height: 16, viewBox: '0 0 16 16', fill: 'none' },
+    React.createElement('rect', { x: 1.5, y: 1.5, width: 13, height: 13, rx: 2, stroke: 'currentColor', strokeWidth: 1.5 }),
+    React.createElement('path', { d: 'M5 8L7 10L11 6', stroke: 'currentColor', strokeWidth: 1.5, strokeLinecap: 'round', strokeLinejoin: 'round' })
+);
+const SvgMic = () => React.createElement('svg', { width: 16, height: 16, viewBox: '0 0 16 16', fill: 'none' },
+    React.createElement('rect', { x: 5.5, y: 1.5, width: 5, height: 7, rx: 2.5, stroke: 'currentColor', strokeWidth: 1.5 }),
+    React.createElement('path', { d: 'M2.5 8C2.5 10.761 4.961 13 8 13C11.039 13 13.5 10.761 13.5 8', stroke: 'currentColor', strokeWidth: 1.5, strokeLinecap: 'round' }),
+    React.createElement('path', { d: 'M8 13V15', stroke: 'currentColor', strokeWidth: 1.5, strokeLinecap: 'round' })
+);
+const SvgFolder = () => React.createElement('svg', { width: 16, height: 16, viewBox: '0 0 16 16', fill: 'none' },
+    React.createElement('path', { d: 'M1.5 4C1.5 3.172 2.172 2.5 3 2.5H6.5L8 4.5H13C13.828 4.5 14.5 5.172 14.5 6V12C14.5 12.828 13.828 13.5 13 13.5H3C2.172 13.5 1.5 12.828 1.5 12V4Z', stroke: 'currentColor', strokeWidth: 1.5, strokeLinejoin: 'round' })
+);
+
 const VALID_TABS = new Set(['minutes', 'transcript', 'requirements', 'stakeholders']);
 
 function pickDefaultTab(status, preferred) {
@@ -882,6 +908,37 @@ function MeetingDetail({ meeting, onBack, initialTab, onTabChange }) {
     };
     const charCount = (meetingData?.polished_transcript || meetingData?.raw_transcript || '').length;
 
+    const stepState = (key, afterKeys) => {
+        const s = meetingData.status;
+        if (s === 'completed' || afterKeys.includes(s)) return 'done';
+        if (s === key) return 'active';
+        return 'locked';
+    };
+
+    const renderStepper = () => {
+        const s = meetingData.status;
+        if (s === 'completed' || s === 'failed') return null;
+        const steps = [
+            { label: '录音 / 上传', state: s === 'recording' ? 'active' : 'done' },
+            { label: 'AI 转写',    state: stepState('transcribing', ['polishing', 'processing']) },
+            { label: '润色转写',   state: stepState('polishing',    ['processing']) },
+            { label: '生成纪要',   state: stepState('processing',   []) },
+        ];
+        return (
+            <div className="ds-stepper" style={{ marginTop: 12 }}>
+                {steps.map((step, i) => (
+                    <React.Fragment key={i}>
+                        {i > 0 && <div className="ds-step-sep" />}
+                        <div className={`ds-step ${step.state}`}>
+                            <div className="ds-step-dot" />
+                            {step.label}
+                        </div>
+                    </React.Fragment>
+                ))}
+            </div>
+        );
+    };
+
     const statusBadge = () => {
         const s = meetingData?.status;
         if (s === 'completed') return <span className="ds-badge tone-green">已完成</span>;
@@ -970,146 +1027,148 @@ function MeetingDetail({ meeting, onBack, initialTab, onTabChange }) {
     // Status alert: shown above tabs when the meeting is processing or
     // failed, so the error never hides inside a table column.
     // -----------------------------------------------------------------
-    const stateAlert = (() => {
-        const s = meetingData.status;
-        if (s === 'failed') {
-            return (
-                <Alert
-                    type="error"
-                    banner
-                    content={
-                        <Space>
-                            <span>处理失败。你可以尝试从断点恢复，或手动重新运行润色 / 纪要步骤。</span>
-                            <Button size="mini" type="outline" status="danger" onClick={handleResume}>
-                                重试
-                            </Button>
-                        </Space>
-                    }
-                    style={{ marginBottom: 16 }}
-                />
-            );
-        }
-        if (s === 'transcribing' || s === 'polishing' || s === 'processing' || s === 'recording') {
-            return (
-                <Alert
-                    type="info"
-                    banner
-                    content={`AI 正在处理中，当前状态：${
-                        s === 'recording' ? '录音中' :
-                        s === 'transcribing' ? '转写中' :
-                        s === 'polishing' ? '润色中' : '生成纪要中'
-                    }。此页面会自动刷新。`}
-                    style={{ marginBottom: 16 }}
-                />
-            );
-        }
-        return null;
-    })();
+    const stateAlert = meetingData.status === 'failed' ? (
+        <Alert
+            type="error"
+            banner
+            content={
+                <Space>
+                    <span>处理失败。你可以尝试从断点恢复，或手动重新运行润色 / 纪要步骤。</span>
+                    <Button size="mini" type="outline" status="danger" onClick={handleResume}>重试</Button>
+                </Space>
+            }
+            style={{ marginBottom: 16 }}
+        />
+    ) : null;
 
-    const kbBtnDisabled = !canExport || kbSyncing;
+    const kbBtnType = canExport ? 'primary' : 'outline';
+    const kbBtnDisabled = kbSyncing;
 
     return (
         <div className="meeting-detail">
-            <div className="meeting-detail-top">
-                <div className="meeting-detail-title-row">
-                    <Button onClick={onBack} type="text" icon={<IconLeft />}>返回列表</Button>
-                    <Typography.Title heading={4} className="meeting-detail-heading" style={{ margin: 0, flex: 1, minWidth: 0 }}>
-                        <span className="meeting-detail-title-text" title={meetingData?.title || ''}>
-                            {meetingData?.title || '未命名会议'}
-                        </span>
-                        <span className="meeting-detail-title-badge">{statusBadge()}</span>
-                    </Typography.Title>
-                </div>
-                <div className="meeting-detail-toolbar">
-                    <Space wrap size={10}>
-                        <Tooltip
-                            content={
-                                meetingData.kb_synced_at
-                                    ? `已于 ${new Date(meetingData.kb_synced_at).toLocaleString('zh-CN')} 同步纪要到实施知识库。下拉可跳转干系人图谱同步。`
-                                    : '将会议纪要以 Markdown 同步到实施知识库（可选归属项目）。下拉可去干系人页同步图谱。'
-                            }
-                        >
-                            <span className="meeting-detail-kb-split">
-                                <Button
-                                    type="primary"
-                                    status={meetingData.kb_synced_at ? 'success' : undefined}
-                                    className="meeting-detail-kb-main"
-                                    onClick={openKbModal}
-                                    loading={kbSyncing}
-                                    disabled={kbBtnDisabled}
-                                >
-                                    {meetingData.kb_synced_at ? '✓ 纪要已同步' : '同步纪要'}
-                                </Button>
-                                <Dropdown droplist={kbSplitMenu} trigger="click" position="br" disabled={kbBtnDisabled}>
-                                    <Button
-                                        type="primary"
-                                        status={meetingData.kb_synced_at ? 'success' : undefined}
-                                        className="meeting-detail-kb-caret"
-                                        icon={<IconDown />}
-                                        disabled={kbBtnDisabled}
-                                    />
+            {/* ---- Hero Card -------------------------------------------- */}
+            <div className="ds-hero-card">
+                <div className="ds-hero-card-inner">
+                    <div style={{ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: 16, flexWrap: 'wrap' }}>
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 4 }}>
+                                <Button onClick={onBack} type="text" icon={<IconLeft />} size="small" />
+                                <span className="ds-hero-kicker">会议详情</span>
+                                {statusBadge()}
+                            </div>
+                            <div className="ds-hero-title" title={meetingData?.title || ''}>
+                                {meetingData?.title || '未命名会议'}
+                            </div>
+                            <div className="ds-hero-meta">
+                                {[
+                                    meetingData?.start_time ? new Date(meetingData.start_time).toLocaleDateString('zh-CN') : null,
+                                    computeDuration() !== '-' ? computeDuration() : null,
+                                    charCount > 0 ? `${charCount.toLocaleString()} 字` : null,
+                                ].filter(Boolean).join(' · ')}
+                            </div>
+                        </div>
+                        <div className="meeting-detail-toolbar">
+                            <Space wrap size={10}>
+                                <Tooltip content={
+                                    !canExport
+                                        ? '会议处理完成后即可同步'
+                                        : meetingData.kb_synced_at
+                                            ? `已于 ${new Date(meetingData.kb_synced_at).toLocaleString('zh-CN')} 同步纪要到实施知识库。下拉可跳转干系人图谱同步。`
+                                            : '将会议纪要以 Markdown 同步到实施知识库（可选归属项目）。下拉可去干系人页同步图谱。'
+                                }>
+                                    <span className="meeting-detail-kb-split">
+                                        <Button
+                                            type={kbBtnType}
+                                            status={meetingData.kb_synced_at ? 'success' : undefined}
+                                            className="meeting-detail-kb-main"
+                                            onClick={openKbModal}
+                                            loading={kbSyncing}
+                                            disabled={kbBtnDisabled}
+                                        >
+                                            {meetingData.kb_synced_at ? '✓ 纪要已同步' : '同步纪要'}
+                                        </Button>
+                                        <Dropdown droplist={kbSplitMenu} trigger="click" position="br" disabled={kbBtnDisabled}>
+                                            <Button
+                                                type={kbBtnType}
+                                                status={meetingData.kb_synced_at ? 'success' : undefined}
+                                                className="meeting-detail-kb-caret"
+                                                icon={<IconDown />}
+                                                disabled={kbBtnDisabled}
+                                            />
+                                        </Dropdown>
+                                    </span>
+                                </Tooltip>
+                                <Dropdown droplist={exportMenu} position="br" trigger="click" disabled={!canExport && !meetingData.feishu_url && !meetingData.bitable_url}>
+                                    <Button type="outline" icon={<IconDownload />} loading={exporting}>导出</Button>
                                 </Dropdown>
-                            </span>
-                        </Tooltip>
-                        <Dropdown droplist={exportMenu} position="br" trigger="click" disabled={!canExport && !meetingData.feishu_url && !meetingData.bitable_url}>
-                            <Button type="outline" icon={<IconDownload />} loading={exporting}>
-                                导出
-                            </Button>
-                        </Dropdown>
-                        <Dropdown droplist={moreMenu} position="br" trigger="click">
-                            <Button type="outline" icon={<IconMore />} loading={loading}>
-                                更多
-                            </Button>
-                        </Dropdown>
-                    </Space>
-                    <Typography.Text type="secondary" className="meeting-detail-toolbar-hint" style={{ fontSize: 12 }}>
-                        处理完成后：先看纪要 → 需要再打开转写 / 需求 / 干系人。
-                    </Typography.Text>
+                                <Dropdown droplist={moreMenu} position="br" trigger="click">
+                                    <Button type="outline" icon={<IconMore />} loading={loading}>更多</Button>
+                                </Dropdown>
+                            </Space>
+                        </div>
+                    </div>
+                    {renderStepper()}
                 </div>
             </div>
 
-            {/* ---- Row 2: metric chips --------------------------------- */}
-            <div className="ds-metric-row">
-                <div className="ds-metric">
-                    <div className="ds-metric-label">📅 日期</div>
-                    <div className="ds-metric-value">
-                        {meetingData?.start_time ? new Date(meetingData.start_time).toLocaleDateString('zh-CN') : '-'}
+            {/* ---- Stat Grid ------------------------------------------- */}
+            <div className="ds-stat-grid">
+                <div className="ds-stat-card">
+                    <div className="ds-stat-icon orange"><SvgCalendar /></div>
+                    <div className="ds-stat-body">
+                        <div className="ds-stat-label">日期</div>
+                        <div className="ds-stat-value">
+                            {meetingData?.start_time ? new Date(meetingData.start_time).toLocaleDateString('zh-CN') : '—'}
+                        </div>
                     </div>
                 </div>
-                <div className="ds-metric">
-                    <div className="ds-metric-label">⏱ 总时长</div>
-                    <div className="ds-metric-value">{computeDuration()}</div>
-                </div>
-                <div className="ds-metric">
-                    <div className="ds-metric-label">📝 字数</div>
-                    <div className="ds-metric-value">{charCount.toLocaleString()}</div>
-                </div>
-                <div className="ds-metric">
-                    <div className="ds-metric-label">🗂 待办</div>
-                    <div className="ds-metric-value">
-                        {Array.isArray(meetingData?.minutes?.action_items) ? meetingData.minutes.action_items.length : 0}
+                <div className="ds-stat-card">
+                    <div className="ds-stat-icon blue"><SvgClock /></div>
+                    <div className="ds-stat-body">
+                        <div className="ds-stat-label">总时长</div>
+                        <div className="ds-stat-value">{computeDuration()}</div>
                     </div>
                 </div>
-                <div className="ds-metric">
-                    <div className="ds-metric-label">🎙 ASR</div>
-                    <div className="ds-metric-value" style={{ fontSize: 13 }}>{asrLabel}</div>
+                <div className="ds-stat-card">
+                    <div className="ds-stat-icon green"><SvgDoc /></div>
+                    <div className="ds-stat-body">
+                        <div className="ds-stat-label">字数</div>
+                        <div className="ds-stat-value">{charCount.toLocaleString()}</div>
+                    </div>
+                </div>
+                <div className="ds-stat-card">
+                    <div className="ds-stat-icon purple"><SvgTask /></div>
+                    <div className="ds-stat-body">
+                        <div className="ds-stat-label">待办事项</div>
+                        <div className="ds-stat-value">
+                            {Array.isArray(meetingData?.minutes?.action_items) ? meetingData.minutes.action_items.length : 0}
+                        </div>
+                    </div>
+                </div>
+                <div className="ds-stat-card">
+                    <div className="ds-stat-icon teal"><SvgMic /></div>
+                    <div className="ds-stat-body">
+                        <div className="ds-stat-label">ASR 引擎</div>
+                        <div className="ds-stat-value" style={{ fontSize: 13 }}>{asrLabel}</div>
+                    </div>
                 </div>
                 <div
-                    className="ds-metric"
-                    style={{ cursor: 'pointer', minWidth: 160 }}
+                    className="ds-stat-card"
+                    style={{ cursor: 'pointer' }}
                     onClick={() => openProjectModal('stakeholders')}
                     title="点击关联或更换项目"
                 >
-                    <div className="ds-metric-label">📂 关联项目</div>
-                    <div className="ds-metric-value" style={{ fontSize: 13 }}>
-                        {meetingData?.kb_project_name || (
-                            <span style={{ color: 'var(--ds-accent)' }}>＋ 关联</span>
-                        )}
+                    <div className="ds-stat-icon rose"><SvgFolder /></div>
+                    <div className="ds-stat-body">
+                        <div className="ds-stat-label">关联项目</div>
+                        <div className="ds-stat-value" style={{ fontSize: 13 }}>
+                            {meetingData?.kb_project_name || <span style={{ color: 'var(--ds-accent)' }}>＋ 关联</span>}
+                        </div>
                     </div>
                 </div>
             </div>
 
-            {/* ---- Row 3: status banner -------------------------------- */}
+            {/* ---- Status alert (failed only) -------------------------- */}
             {stateAlert}
 
             {/* ---- Tabs ------------------------------------------------ */}
