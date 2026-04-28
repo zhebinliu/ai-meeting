@@ -16,11 +16,22 @@
     <!-- html2canvas for exporting editable minutes as PNG -->
     <script src="lib/html2canvas.min.js"></script>
 
+    <!-- vis-network: interactive stakeholder relationship graph -->
+    <script src="https://unpkg.com/vis-network@9.1.9/standalone/umd/vis-network.min.js"></script>
+
     <!-- Babel for JSX (Local) -->
     <script src="lib/babel.min.js"></script>
     
     <script>
+        // Chromium 在组件重排时偶尔会抛出该信息，属于无害告警；若当作致命错误会整页白屏。
+        function isBenignWindowError(msg) {
+            var m = String(msg || '');
+            return /ResizeObserver loop/i.test(m);
+        }
         window.onerror = function(msg, url, line, col, error) {
+            if (isBenignWindowError(msg)) {
+                return true;
+            }
             console.error("Global Error:", msg, "at", url, ":", line);
             document.body.innerHTML = '<div style="color:red;padding:20px;background:#fff;">' +
                 '<h3>前端加载错误</h3>' +
@@ -30,9 +41,15 @@
                 '</div>';
             return false;
         };
+        window.addEventListener('error', function (e) {
+            if (e && isBenignWindowError(e.message)) {
+                e.preventDefault();
+                e.stopPropagation();
+            }
+        }, true);
     </script>
 
-    <link rel="stylesheet" href="css/style.css">
+    <link rel="stylesheet" href="css/style.css?v=2.3">
 </head>
 <body>
     <div id="root"></div>
@@ -61,17 +78,19 @@
 
     <!-- Utilities (loaded first, no JSX) -->
     <script src="js/utils/audio.js"></script>
-    <script src="js/utils/api.js?v=1.8"></script>
+    <script src="js/utils/api.js?v=2.0"></script>
     <script src="js/utils/minutes-export.js?v=1.1"></script>
 
     <!-- Components -->
-    <script type="text/babel" data-presets="react,env" src="js/components/MeetingList.js?v=1.8"></script>
+    <script type="text/babel" data-presets="react,env" src="js/components/MeetingList.js?v=1.9"></script>
     <script type="text/babel" data-presets="react,env" src="js/components/Uploader.js?v=1.6"></script>
     <script type="text/babel" data-presets="react,env" src="js/components/Recorder.js?v=1.6"></script>
-    <script type="text/babel" data-presets="react,env" src="js/components/TextIngest.js?v=1.6"></script>
-    <script type="text/babel" data-presets="react,env" src="js/components/MeetingDetail.js?v=1.9"></script>
+    <script type="text/babel" data-presets="react,env" src="js/components/TextIngest.js?v=1.7"></script>
+    <script type="text/babel" data-presets="react,env" src="js/components/StakeholderTab.js?v=2.2"></script>
+    <script type="text/babel" data-presets="react,env" src="js/components/MeetingDetail.js?v=2.1"></script>
+    <script type="text/babel" data-presets="react,env" src="js/components/UserManual.js?v=1.0"></script>
 
     <!-- Main app (loaded last) -->
-    <script type="text/babel" data-presets="react,env" src="js/app.js?v=1.6"></script>
+    <script type="text/babel" data-presets="react,env" src="js/app.js?v=1.7"></script>
 </body>
 </html>

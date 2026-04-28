@@ -26,10 +26,21 @@ class Meeting(Base):
     done_chunks: int = Column(Integer, nullable=False, default=0)
     bitable_app_token: str | None = Column(String(128), nullable=True, default=None)
     feishu_url: str | None = Column(Text, nullable=True, default=None)
-    # --- Knowledge Base sync ---
+    # --- Knowledge Base sync (meeting minutes) ---
     kb_doc_id: str | None = Column(String(64), nullable=True, default=None)
     kb_url: str | None = Column(Text, nullable=True, default=None)
     kb_synced_at: datetime | None = Column(DateTime, nullable=True, default=None)
+    # --- KB project association (used for stakeholder enrichment) ---
+    # When set, stakeholder extraction will additionally pull KB docs
+    # under this project and merge their people into this meeting's map.
+    kb_project_id: str | None = Column(String(64), nullable=True, default=None)
+    kb_project_name: str | None = Column(String(256), nullable=True, default=None)
+    # --- Stakeholder graph ---
+    # JSON string: {"stakeholders": [...], "relations": [...], "version": int}
+    stakeholder_map: str | None = Column(Text, nullable=True, default=None)
+    stakeholder_kb_doc_id: str | None = Column(String(64), nullable=True, default=None)
+    stakeholder_kb_url: str | None = Column(Text, nullable=True, default=None)
+    stakeholder_kb_synced_at: datetime | None = Column(DateTime, nullable=True, default=None)
     created_at: datetime = Column(DateTime, nullable=False, default=datetime.utcnow)
 
     def __repr__(self) -> str:

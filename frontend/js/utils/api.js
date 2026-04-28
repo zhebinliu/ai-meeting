@@ -35,13 +35,19 @@ const api = {
      * Skips ASR and runs the AI pipeline in background on the server.
      * @param {string} title - Meeting title
      * @param {string} transcript - Raw transcript text
+     * @param {{kb_project_id?: string|null, kb_project_name?: string|null}} [extra] - optional KB project so stakeholder extraction merges project docs
      * @returns {Promise<Object>} - Meeting object with id
      */
-    createMeetingFromText: async (title, transcript) => {
+    createMeetingFromText: async (title, transcript, extra = {}) => {
         const res = await fetch(`${API_BASE}/meetings/from-text`, {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ title, transcript })
+            body: JSON.stringify({
+                title,
+                transcript,
+                kb_project_id: extra.kb_project_id || null,
+                kb_project_name: extra.kb_project_name || null,
+            })
         });
         if (!res.ok) {
             let detail = `Create from text failed: ${res.status}`;
@@ -261,9 +267,98 @@ const api = {
         }
         return res.json();
     },
+
+    /**
+     * Associate (or clear) a KB project with a meeting. Optionally
+     * triggers re-extraction of the stakeholder graph using the new
+     * project's KB documents.
+     * @param {string|number} id - Meeting ID
+     * @param {{project_id?: string|null, project_name?: string|null, rerun_stakeholders?: boolean}} options
+     */
+    setMeetingProject: async (id, options = {}) => {
+        const res = await fetch(`${API_BASE}/meetings/${id}/project`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                project_id: options.project_id || null,
+                project_name: options.project_name || null,
+                rerun_stakeholders: options.rerun_stakeholders !== false,
+            }),
+        });
+        if (!res.ok) {
+            let detail = `Set project failed: ${res.status}`;
+            try { const d = await res.json(); if (d.detail) detail = d.detail; } catch (e) {}
+            throw new Error(detail);
+        }
+        return res.json();
+    },
+
+    /**
+     * Manually trigger stakeholder extraction for a meeting.
+     * The backend runs it in a background task and updates the
+     * meeting's stakeholder_map field on completion.
+     */
+    extractStakeholders: async (id) => {
+        const res = await fetch(
+            `${API_BASE}/meetings/${id}/actions/extract_stakeholders`,
+            { method: 'POST' }
+        );
+        if (!res.ok) {
+            let detail = `Extract stakeholders failed: ${res.status}`;
+            try { const d = await res.json(); if (d.detail) detail = d.detail; } catch (e) {}
+            throw new Error(detail);
+        }
+        return res.json();
+    },
+
+    /**
+     * Save a manually edited stakeholder graph.
+     * @param {string|number} id
+     * @param {{ stakeholders: Array, relations: Array }} graph
+     */
+    updateStakeholderMap: async (id, graph) => {
+        const res = await fetch(`${API_BASE}/meetings/${id}/stakeholder-map`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                stakeholders: graph.stakeholders || [],
+                relations: graph.relations || [],
+            }),
+        });
+        if (!res.ok) {
+            let detail = `Save stakeholder map failed: ${res.status}`;
+            try { const d = await res.json(); if (d.detail) detail = d.detail; } catch (e) {}
+            throw new Error(detail);
+        }
+        return res.json();
+    },
+
+    /**
+     * Push the stakeholder graph (as Markdown) to the KB.
+     * Replaces any previously-uploaded stakeholder doc for this meeting.
+     */
+    syncStakeholderMapToKb: async (id, options = {}) => {
+        const res = await fetch(
+            `${API_BASE}/meetings/${id}/sync-stakeholder-map-kb`,
+            {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    project_id: options.project_id || null,
+                    doc_type: options.doc_type || null,
+                }),
+            }
+        );
+        if (!res.ok) {
+            let detail = `Stakeholder KB sync failed: ${res.status}`;
+            try { const d = await res.json(); if (d.detail) detail = d.detail; } catch (e) {}
+            throw new Error(detail);
+        }
+        return res.json();
+    },
 };
 
 window.api = api;
 // Quick smoke-test marker — open DevTools console and look for this line
 // to confirm the freshest api.js actually loaded (not a stale cache).
-console.info('[api.js] loaded v1.8 — methods:', Object.keys(api).length);
+console.info('[api.js] loaded v1.9 — methods:', Object.keys(api).length);

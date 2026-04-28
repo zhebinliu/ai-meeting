@@ -319,6 +319,7 @@ function MeetingList({ meetings, onSelect, onRefresh, onNavigate }) {
                     <div className="ds-subtitle">
                         共 {meetings.length} 条记录
                         {activeMeetings.length > 0 && ` · ${activeMeetings.length} 个正在处理`}
+                        {meetings.length > 0 && ' · 点击标题进入详情，或双击整行'}
                     </div>
                 </div>
                 <Space>
@@ -346,6 +347,10 @@ function MeetingList({ meetings, onSelect, onRefresh, onNavigate }) {
                         rowKey="id"
                         pagination={{ pageSize: 10, showTotal: true }}
                         border={{ wrapper: false, cell: false }}
+                        onRow={(record) => ({
+                            onDoubleClick: () => onSelect(record),
+                            style: { cursor: 'pointer' },
+                        })}
                     />
                 </div>
             )}

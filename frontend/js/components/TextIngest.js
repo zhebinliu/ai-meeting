@@ -1,14 +1,41 @@
 /* TextIngest component — paste or upload transcript text, then generate minutes */
-var { Card, Input, Button, Space, Message, Typography, Upload } = arco;
+var { Card, Input, Button, Space, Message, Typography, Upload, Select, Alert } = arco;
 
 function TextIngest({ onMeetingCreated }) {
     const [title, setTitle] = React.useState('');
     const [transcript, setTranscript] = React.useState('');
     const [fileName, setFileName] = React.useState('');
     const [submitting, setSubmitting] = React.useState(false);
+    const [kbProjects, setKbProjects] = React.useState(null);
+    const [kbProjectsLoading, setKbProjectsLoading] = React.useState(false);
+    const [kbProjectsError, setKbProjectsError] = React.useState(null);
+    const [kbProjectId, setKbProjectId] = React.useState(() => {
+        try { return localStorage.getItem('kb:lastProjectId') || ''; } catch (e) { return ''; }
+    });
 
     const charCount = transcript.length;
     const canSubmit = !!transcript.trim() && !submitting;
+
+    React.useEffect(() => {
+        let cancelled = false;
+        (async () => {
+            if (!window.api || typeof window.api.listKbProjects !== 'function') return;
+            setKbProjectsLoading(true);
+            setKbProjectsError(null);
+            try {
+                const list = await window.api.listKbProjects();
+                if (!cancelled) setKbProjects(list || []);
+            } catch (err) {
+                if (!cancelled) {
+                    setKbProjectsError(err.message || String(err));
+                    setKbProjects([]);
+                }
+            } finally {
+                if (!cancelled) setKbProjectsLoading(false);
+            }
+        })();
+        return () => { cancelled = true; };
+    }, []);
 
     const readTextFile = (file) => {
         if (!file) return;
@@ -46,11 +73,20 @@ function TextIngest({ onMeetingCreated }) {
         }
         setSubmitting(true);
         try {
+            const chosenName =
+                (kbProjects || []).find((p) => p.id === kbProjectId)?.name || null;
             const meeting = await window.api.createMeetingFromText(
                 title.trim() || '未命名会议',
-                transcript
+                transcript,
+                {
+                    kb_project_id: kbProjectId || null,
+                    kb_project_name: chosenName,
+                }
             );
-            Message.success('已提交，AI 正在生成纪要');
+            try {
+                if (kbProjectId) localStorage.setItem('kb:lastProjectId', kbProjectId);
+            } catch (e) {}
+            Message.success('已提交，AI 正在生成纪要与干系人图谱');
             if (onMeetingCreated) onMeetingCreated(meeting.id);
         } catch (err) {
             Message.error(err.message || '提交失败，请稍后重试');
@@ -66,7 +102,8 @@ function TextIngest({ onMeetingCreated }) {
             style={{ maxWidth: 820, margin: '0 auto', boxShadow: '0 4px 16px rgba(0,0,0,0.08)' }}
         >
             <Typography.Paragraph type="secondary" style={{ marginBottom: 24 }}>
-                上传 .txt / .md 文字转录文件，或直接粘贴会议笔记，AI 将自动润色并生成结构化会议纪要（概要、要点、决策、待办、需求）。
+                上传 .txt / .md 文字转录文件，或直接粘贴会议笔记，AI 将自动润色并生成结构化会议纪要（概要、要点、决策、待办、需求），并提取干系人图谱。
+                若选择实施知识库中的项目，系统会拉取该项目下文档中的人员信息并合并进图谱；生成后在详情页「干系人」页可查看，并可将 Markdown 图谱同步到知识库。
             </Typography.Paragraph>
 
             <Space direction="vertical" size="large" style={{ width: '100%' }}>
@@ -94,6 +131,39 @@ function TextIngest({ onMeetingCreated }) {
                             </div>
                         </div>
                     </Upload>
+                </div>
+
+                <div>
+                    <Typography.Text style={{ display: 'block', marginBottom: 8, fontWeight: 500 }}>
+                        关联实施知识库项目（可选）
+                    </Typography.Text>
+                    {kbProjectsError && (
+                        <Alert
+                            type="warning"
+                            style={{ marginBottom: 8 }}
+                            content={`无法加载项目列表（${kbProjectsError}）。仍可生成纪要，但不会合并知识库文档中的干系人。`}
+                        />
+                    )}
+                    <Select
+                        allowClear
+                        showSearch
+                        placeholder="不选则仅从本次会议文本提取干系人"
+                        value={kbProjectId || undefined}
+                        onChange={(v) => setKbProjectId(v || '')}
+                        loading={kbProjectsLoading}
+                        disabled={submitting}
+                        style={{ width: '100%' }}
+                        filterOption={(input, option) => {
+                            const txt = (option && option.props && option.props.children) || '';
+                            return String(txt).toLowerCase().includes(String(input).toLowerCase());
+                        }}
+                    >
+                        {(kbProjects || []).map((p) => (
+                            <Select.Option key={p.id} value={p.id}>
+                                {p.name}{p.customer && p.customer !== p.name ? ` · ${p.customer}` : ''}
+                            </Select.Option>
+                        ))}
+                    </Select>
                 </div>
 
                 <div>

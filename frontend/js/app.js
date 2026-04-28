@@ -1,6 +1,6 @@
 /* Main App — hash-based router + DS-styled shell */
 const { useState, useEffect, useCallback } = React;
-var { Layout, Menu, Button, Dropdown, Typography, Space } = arco;
+var { Layout, Menu, Button, Dropdown, Typography, Space, Tooltip } = arco;
 var { Header, Content } = Layout;
 var MenuItem = Menu.Item;
 
@@ -49,6 +49,9 @@ window.appNav = { go: navigate, parse: parseHash };
 // Header: brand + single "会议列表" tab + right-side CTA dropdown
 // ---------------------------------------------------------------
 function AppHeader({ currentView, onNavigate }) {
+    const [manualOpen, setManualOpen] = useState(false);
+    const Manual = window.UserManualDrawer;
+
     const newMeetingMenu = (
         <Menu onClickMenuItem={(key) => onNavigate(`/new/${key}`)}>
             <MenuItem key="record">🎙 &nbsp;实时录音</MenuItem>
@@ -79,11 +82,27 @@ function AppHeader({ currentView, onNavigate }) {
                 <MenuItem key="home">会议列表</MenuItem>
             </Menu>
 
-            <Dropdown droplist={newMeetingMenu} position="br" trigger="click">
-                <Button type="primary" icon={<IconPlus />}>
-                    新建会议
-                </Button>
-            </Dropdown>
+            <Space size={10}>
+                <Tooltip content="操作手册">
+                    <Button
+                        type="outline"
+                        shape="circle"
+                        className="user-manual-trigger"
+                        onClick={() => setManualOpen(true)}
+                        aria-label="打开操作手册"
+                    >
+                        ?
+                    </Button>
+                </Tooltip>
+                <Dropdown droplist={newMeetingMenu} position="br" trigger="click">
+                    <Button type="primary" icon={<IconPlus />}>
+                        新建会议
+                    </Button>
+                </Dropdown>
+            </Space>
+            {Manual ? (
+                <Manual visible={manualOpen} onClose={() => setManualOpen(false)} />
+            ) : null}
         </Header>
     );
 }

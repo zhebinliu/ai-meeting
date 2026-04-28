@@ -13,10 +13,11 @@ const {
     IconMore = () => null,
     IconDownload = () => null,
     IconEdit = () => null,
+    IconDown = () => <span style={{ fontSize: 10, lineHeight: 1 }} aria-hidden>▾</span>,
 } = _icons;
 var TabPane = Tabs.TabPane;
 
-const VALID_TABS = new Set(['minutes', 'transcript', 'requirements']);
+const VALID_TABS = new Set(['minutes', 'transcript', 'requirements', 'stakeholders']);
 
 function pickDefaultTab(status, preferred) {
     if (preferred && VALID_TABS.has(preferred)) return preferred;
@@ -52,6 +53,21 @@ function MeetingDetail({ meeting, onBack, initialTab, onTabChange }) {
         try { return localStorage.getItem('kb:lastProjectId') || ''; } catch (e) { return ''; }
     });
     const [kbSyncing, setKbSyncing] = React.useState(false);
+
+    // ----------------------------------------------------------------------
+    // Project association modal — used both by "干系人图谱" tab (to pick the
+    // KB project for stakeholder enrichment) and from the legacy KB-sync
+    // modal (which now also persists the choice as the meeting's project).
+    // We keep the modal logic centralised here so both call sites stay in
+    // sync. ``projectModalReason`` lets the modal show context-appropriate
+    // copy ("attach project for stakeholders" vs "pick a project to sync").
+    // ----------------------------------------------------------------------
+    const [projectModalOpen, setProjectModalOpen] = React.useState(false);
+    const [projectModalReason, setProjectModalReason] = React.useState('stakeholders');
+    const [projectChoice, setProjectChoice] = React.useState(
+        meeting?.kb_project_id || ''
+    );
+    const [projectSubmitting, setProjectSubmitting] = React.useState(false);
 
     // ------------------------------------------------------------------
     // In-place edits made inside the editable template are committed to
@@ -261,14 +277,21 @@ function MeetingDetail({ meeting, onBack, initialTab, onTabChange }) {
 
     const renderMinutesTab = () => (
         <div className="minutes-tab">
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 16 }}>
-                <Typography.Text style={{ fontSize: 13, color: 'var(--ds-text-3)' }}>
-                    {viewMode === 'edit'
-                        ? '✏️ 编辑模式：直接点击任一文字即可修改，切回只读会自动保存'
-                        : editedMinutes
-                            ? '只读视图（显示你的本地编辑版本）'
-                            : '只读视图'}
-                </Typography.Text>
+            <div className="minutes-tab-toolbar">
+                <div className="minutes-tab-toolbar-hint">
+                    <Typography.Text style={{ fontSize: 13, color: 'var(--ds-text-3)' }}>
+                        {viewMode === 'edit'
+                            ? '✏️ 编辑：直接改文字，切回「只读」会保存到本页'
+                            : editedMinutes
+                                ? '只读（含你在本机编辑后的版本）'
+                                : '只读'}
+                    </Typography.Text>
+                    {meetingData.status === 'completed' && (
+                        <Typography.Text type="secondary" style={{ fontSize: 12, display: 'block', marginTop: 4 }}>
+                            导出多种格式、同步到实施知识库：请使用<strong>页面上方工具栏</strong>。
+                        </Typography.Text>
+                    )}
+                </div>
                 <Radio.Group type="button" size="small" value={viewMode} onChange={handleViewModeChange}>
                     <Radio value="read">只读</Radio>
                     <Radio value="edit">编辑</Radio>
@@ -594,22 +617,74 @@ function MeetingDetail({ meeting, onBack, initialTab, onTabChange }) {
 
     // ----- KB sync handlers ------------------------------------------------
 
+    const ensureKbProjects = async () => {
+        if (kbProjects !== null || kbProjectsLoading) return;
+        setKbProjectsLoading(true);
+        setKbProjectsError(null);
+        try {
+            const list = await window.api.listKbProjects();
+            setKbProjects(list || []);
+        } catch (err) {
+            setKbProjectsError(err.message || String(err));
+            setKbProjects([]);
+        } finally {
+            setKbProjectsLoading(false);
+        }
+    };
+
     const openKbModal = async () => {
-        // Commit any in-flight edits before exporting Markdown content.
         if (viewMode === 'edit') commitEdits();
         setKbModalOpen(true);
-        if (kbProjects === null && !kbProjectsLoading) {
-            setKbProjectsLoading(true);
-            setKbProjectsError(null);
-            try {
-                const list = await window.api.listKbProjects();
-                setKbProjects(list || []);
-            } catch (err) {
-                setKbProjectsError(err.message || String(err));
-                setKbProjects([]);
-            } finally {
-                setKbProjectsLoading(false);
+        ensureKbProjects();
+    };
+
+    const openProjectModal = async (reason = 'stakeholders') => {
+        setProjectModalReason(reason);
+        setProjectChoice(meetingData?.kb_project_id || '');
+        setProjectModalOpen(true);
+        ensureKbProjects();
+    };
+
+    const refreshMeetingData = async () => {
+        try {
+            const fresh = await window.api.getMeeting(meetingData.id);
+            setMeetingData(fresh);
+        } catch (err) {
+            console.warn('refresh meeting failed', err);
+        }
+    };
+
+    const submitProjectChoice = async () => {
+        setProjectSubmitting(true);
+        try {
+            const chosen = projectChoice || null;
+            const projectName = (kbProjects || []).find((p) => p.id === chosen)?.name || null;
+            const res = await window.api.setMeetingProject(meetingData.id, {
+                project_id: chosen,
+                project_name: projectName,
+                rerun_stakeholders: true,
+            });
+            setMeetingData((prev) => ({
+                ...prev,
+                kb_project_id: res.kb_project_id,
+                kb_project_name: res.kb_project_name,
+            }));
+            if (chosen) {
+                if (res.stakeholder_extraction === 'scheduled') {
+                    Message.success('已关联项目，AI 正在重新抽取干系人，约 30-60 秒后自动刷新');
+                    setTimeout(refreshMeetingData, 12000);
+                    setTimeout(refreshMeetingData, 35000);
+                } else {
+                    Message.success('已关联项目');
+                }
+            } else {
+                Message.success('已清除项目关联');
             }
+            setProjectModalOpen(false);
+        } catch (err) {
+            Message.error('保存失败：' + (err.message || err));
+        } finally {
+            setProjectSubmitting(false);
         }
     };
 
@@ -875,6 +950,22 @@ function MeetingDetail({ meeting, onBack, initialTab, onTabChange }) {
         </Menu>
     );
 
+    const kbSplitMenu = (
+        <Menu onClickMenuItem={(key) => {
+            if (key === 'stakeholders') {
+                handleTabChange('stakeholders');
+                Message.info({
+                    content: '打开「干系人」后，在工具栏点击「同步图谱到知识库」上传干系人 Markdown。',
+                    duration: 5000,
+                });
+            }
+        }}>
+            <Menu.Item key="stakeholders" disabled={!canExport}>
+                👥 &nbsp;去「干系人」同步图谱到知识库…
+            </Menu.Item>
+        </Menu>
+    );
+
     // -----------------------------------------------------------------
     // Status alert: shown above tabs when the meeting is processing or
     // failed, so the error never hides inside a table column.
@@ -915,45 +1006,66 @@ function MeetingDetail({ meeting, onBack, initialTab, onTabChange }) {
         return null;
     })();
 
+    const kbBtnDisabled = !canExport || kbSyncing;
+
     return (
         <div className="meeting-detail">
-            {/* ---- Row 1: back + title + status + actions --------------- */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 10 }}>
-                <Button onClick={onBack} type="text" icon={<IconLeft />}>返回</Button>
-                <Typography.Title heading={4} style={{ margin: 0, flex: 1, minWidth: 0 }}>
-                    <span style={{ overflow: 'hidden', textOverflow: 'ellipsis' }}>
-                        {meetingData?.title || '未命名会议'}
-                    </span>
-                    <span style={{ marginLeft: 12, verticalAlign: 'middle' }}>{statusBadge()}</span>
-                </Typography.Title>
-
-                <Tooltip
-                    content={
-                        meetingData.kb_synced_at
-                            ? `已于 ${new Date(meetingData.kb_synced_at).toLocaleString('zh-CN')} 同步到实施知识库`
-                            : '把会议纪要 (Markdown) 上传到实施知识库'
-                    }
-                >
-                    <Button
-                        type="primary"
-                        status={meetingData.kb_synced_at ? 'success' : undefined}
-                        onClick={openKbModal}
-                        loading={kbSyncing}
-                        disabled={!canExport}
-                    >
-                        {meetingData.kb_synced_at ? '✓ 已同步实施知识库' : '↗ 同步到实施知识库'}
-                    </Button>
-                </Tooltip>
-                <Dropdown droplist={exportMenu} position="br" trigger="click" disabled={!canExport && !meetingData.feishu_url && !meetingData.bitable_url}>
-                    <Button type="outline" icon={<IconDownload />} loading={exporting}>
-                        导出
-                    </Button>
-                </Dropdown>
-                <Dropdown droplist={moreMenu} position="br" trigger="click">
-                    <Button type="outline" icon={<IconMore />} loading={loading}>
-                        更多
-                    </Button>
-                </Dropdown>
+            <div className="meeting-detail-top">
+                <div className="meeting-detail-title-row">
+                    <Button onClick={onBack} type="text" icon={<IconLeft />}>返回列表</Button>
+                    <Typography.Title heading={4} className="meeting-detail-heading" style={{ margin: 0, flex: 1, minWidth: 0 }}>
+                        <span className="meeting-detail-title-text" title={meetingData?.title || ''}>
+                            {meetingData?.title || '未命名会议'}
+                        </span>
+                        <span className="meeting-detail-title-badge">{statusBadge()}</span>
+                    </Typography.Title>
+                </div>
+                <div className="meeting-detail-toolbar">
+                    <Space wrap size={10}>
+                        <Tooltip
+                            content={
+                                meetingData.kb_synced_at
+                                    ? `已于 ${new Date(meetingData.kb_synced_at).toLocaleString('zh-CN')} 同步纪要到实施知识库。下拉可跳转干系人图谱同步。`
+                                    : '将会议纪要以 Markdown 同步到实施知识库（可选归属项目）。下拉可去干系人页同步图谱。'
+                            }
+                        >
+                            <span className="meeting-detail-kb-split">
+                                <Button
+                                    type="primary"
+                                    status={meetingData.kb_synced_at ? 'success' : undefined}
+                                    className="meeting-detail-kb-main"
+                                    onClick={openKbModal}
+                                    loading={kbSyncing}
+                                    disabled={kbBtnDisabled}
+                                >
+                                    {meetingData.kb_synced_at ? '✓ 纪要已同步' : '同步纪要'}
+                                </Button>
+                                <Dropdown droplist={kbSplitMenu} trigger="click" position="br" disabled={kbBtnDisabled}>
+                                    <Button
+                                        type="primary"
+                                        status={meetingData.kb_synced_at ? 'success' : undefined}
+                                        className="meeting-detail-kb-caret"
+                                        icon={<IconDown />}
+                                        disabled={kbBtnDisabled}
+                                    />
+                                </Dropdown>
+                            </span>
+                        </Tooltip>
+                        <Dropdown droplist={exportMenu} position="br" trigger="click" disabled={!canExport && !meetingData.feishu_url && !meetingData.bitable_url}>
+                            <Button type="outline" icon={<IconDownload />} loading={exporting}>
+                                导出
+                            </Button>
+                        </Dropdown>
+                        <Dropdown droplist={moreMenu} position="br" trigger="click">
+                            <Button type="outline" icon={<IconMore />} loading={loading}>
+                                更多
+                            </Button>
+                        </Dropdown>
+                    </Space>
+                    <Typography.Text type="secondary" className="meeting-detail-toolbar-hint" style={{ fontSize: 12 }}>
+                        处理完成后：先看纪要 → 需要再打开转写 / 需求 / 干系人。
+                    </Typography.Text>
+                </div>
             </div>
 
             {/* ---- Row 2: metric chips --------------------------------- */}
@@ -982,6 +1094,19 @@ function MeetingDetail({ meeting, onBack, initialTab, onTabChange }) {
                     <div className="ds-metric-label">🎙 ASR</div>
                     <div className="ds-metric-value" style={{ fontSize: 13 }}>{asrLabel}</div>
                 </div>
+                <div
+                    className="ds-metric"
+                    style={{ cursor: 'pointer', minWidth: 160 }}
+                    onClick={() => openProjectModal('stakeholders')}
+                    title="点击关联或更换项目"
+                >
+                    <div className="ds-metric-label">📂 关联项目</div>
+                    <div className="ds-metric-value" style={{ fontSize: 13 }}>
+                        {meetingData?.kb_project_name || (
+                            <span style={{ color: 'var(--ds-accent)' }}>＋ 关联</span>
+                        )}
+                    </div>
+                </div>
             </div>
 
             {/* ---- Row 3: status banner -------------------------------- */}
@@ -997,6 +1122,35 @@ function MeetingDetail({ meeting, onBack, initialTab, onTabChange }) {
                 </TabPane>
                 <TabPane key="requirements" title="需求清单">
                     {renderRequirements()}
+                </TabPane>
+                <TabPane
+                    key="stakeholders"
+                    title={
+                        <span>
+                            干系人图谱
+                            {Array.isArray(meetingData?.stakeholders?.stakeholders) && meetingData.stakeholders.stakeholders.length > 0 && (
+                                <span style={{ marginLeft: 6, fontSize: 12, color: 'var(--ds-text-3)' }}>
+                                    ({meetingData.stakeholders.stakeholders.length})
+                                </span>
+                            )}
+                        </span>
+                    }
+                >
+                    {window.StakeholderTab ? (
+                        <window.StakeholderTab
+                            meeting={meetingData}
+                            onRefresh={refreshMeetingData}
+                            onProjectClick={() => openProjectModal('stakeholders')}
+                            onSyncedKb={(res) => setMeetingData((prev) => ({
+                                ...prev,
+                                stakeholder_kb_doc_id: res.kb_doc_id,
+                                stakeholder_kb_url: res.kb_url,
+                                stakeholder_kb_synced_at: res.kb_synced_at || new Date().toISOString(),
+                            }))}
+                        />
+                    ) : (
+                        <Spin />
+                    )}
                 </TabPane>
             </Tabs>
 
@@ -1062,6 +1216,64 @@ function MeetingDetail({ meeting, onBack, initialTab, onTabChange }) {
                                     <span>确认后会先 <strong>删除旧文档</strong>，再上传当前最新的版本。</span>
                                 </Space>
                             }
+                        />
+                    )}
+                </div>
+            </Modal>
+
+            {/* ---- Project association Modal ---------------------------- */}
+            <Modal
+                title={meetingData.kb_project_id ? '更换关联项目' : '关联项目'}
+                visible={projectModalOpen}
+                onCancel={() => setProjectModalOpen(false)}
+                onOk={submitProjectChoice}
+                okText={projectSubmitting ? '保存中...' : '保存'}
+                cancelText="取消"
+                confirmLoading={projectSubmitting}
+                style={{ width: 520 }}
+            >
+                <div style={{ display: 'flex', flexDirection: 'column', gap: 12 }}>
+                    <Typography.Paragraph style={{ marginBottom: 0, color: 'var(--ds-text-2)' }}>
+                        关联实施知识库中的项目后，系统会自动拉取该项目下的所有文档，
+                        从中识别人员信息并合并到本会议的<strong>干系人图谱</strong>中。
+                    </Typography.Paragraph>
+
+                    {kbProjectsError && (
+                        <Alert
+                            type="error"
+                            content={`项目列表加载失败：${kbProjectsError}`}
+                        />
+                    )}
+
+                    <div>
+                        <Typography.Text style={{ fontSize: 13, color: 'var(--ds-text-3)' }}>
+                            选择项目（留空可清除关联）
+                        </Typography.Text>
+                        <Select
+                            allowClear
+                            showSearch
+                            placeholder="搜索项目名称 / 客户"
+                            value={projectChoice || undefined}
+                            onChange={(v) => setProjectChoice(v || '')}
+                            loading={kbProjectsLoading}
+                            style={{ marginTop: 6, width: '100%' }}
+                            filterOption={(input, option) => {
+                                const txt = (option && option.props && option.props.children) || '';
+                                return String(txt).toLowerCase().includes(String(input).toLowerCase());
+                            }}
+                        >
+                            {(kbProjects || []).map((p) => (
+                                <Select.Option key={p.id} value={p.id}>
+                                    {p.name}{p.customer && p.customer !== p.name ? ` · ${p.customer}` : ''}{p.document_count ? ` (${p.document_count} 文档)` : ''}
+                                </Select.Option>
+                            ))}
+                        </Select>
+                    </div>
+
+                    {projectChoice && (
+                        <Alert
+                            type="info"
+                            content="保存后会自动重新抽取干系人，融合项目知识库里的人员信息（约 30-60 秒）"
                         />
                     )}
                 </div>
