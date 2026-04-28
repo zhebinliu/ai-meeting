@@ -545,6 +545,101 @@ body {
     flex-wrap: wrap;
 }
 
+/* Minutes tab DS sections */
+.ds-minutes-section {
+    background: var(--ds-surface);
+    border: 1px solid var(--ds-line);
+    border-radius: var(--ds-radius-lg);
+    overflow: hidden;
+    margin-bottom: 12px;
+}
+.ds-minutes-section-title {
+    font-size: 13px;
+    font-weight: 600;
+    color: var(--ds-accent-deep);
+    padding: 11px 16px;
+    border-bottom: 1px solid var(--ds-line);
+    background: var(--ds-accent-soft);
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.ds-minutes-section-title::before {
+    content: '';
+    width: 3px;
+    height: 13px;
+    border-radius: 2px;
+    background: var(--ds-accent);
+    flex-shrink: 0;
+}
+.ds-minutes-section-title.accent-blue { color: #1D4ED8; background: #EFF6FF; }
+.ds-minutes-section-title.accent-blue::before { background: #2563EB; }
+.ds-minutes-section-title.accent-green { color: #065F46; background: #ECFDF5; }
+.ds-minutes-section-title.accent-green::before { background: #059669; }
+.ds-minutes-body {
+    padding: 14px 16px;
+}
+.ds-minutes-paragraph {
+    font-size: 14px;
+    line-height: 1.75;
+    color: var(--ds-text-2);
+    margin: 0;
+}
+.ds-minutes-list {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    display: flex;
+    flex-direction: column;
+    gap: 9px;
+}
+.ds-minutes-list li {
+    font-size: 14px;
+    line-height: 1.65;
+    color: var(--ds-text-2);
+    padding-left: 14px;
+    position: relative;
+}
+.ds-minutes-list li::before {
+    content: '';
+    position: absolute;
+    left: 0;
+    top: 8px;
+    width: 5px;
+    height: 5px;
+    border-radius: 50%;
+    background: var(--ds-line);
+    flex-shrink: 0;
+}
+.ds-minutes-topic {
+    font-weight: 600;
+    color: var(--ds-text);
+}
+.ds-minutes-owner {
+    display: inline-block;
+    font-size: 11.5px;
+    font-weight: 600;
+    color: var(--ds-accent-deep);
+    background: var(--ds-accent-soft);
+    border-radius: 4px;
+    padding: 1px 6px;
+    margin-right: 8px;
+}
+.ds-minutes-meta {
+    font-size: 12px;
+    color: var(--ds-text-3);
+    margin-left: 6px;
+}
+.ds-minutes-deadline {
+    display: inline-block;
+    font-size: 11.5px;
+    color: #B91C1C;
+    background: #FEF2F2;
+    border-radius: 4px;
+    padding: 1px 6px;
+    margin-left: 8px;
+}
+
 /* Recording indicator & typewriter cursor (kept from previous stylesheet) */
 .pulse-dot {
     animation: pulse 1.4s ease-in-out infinite;

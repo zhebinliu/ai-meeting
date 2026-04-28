@@ -43,6 +43,25 @@ const SvgFolder = () => React.createElement('svg', { width: 16, height: 16, view
     React.createElement('path', { d: 'M1.5 4C1.5 3.172 2.172 2.5 3 2.5H6.5L8 4.5H13C13.828 4.5 14.5 5.172 14.5 6V12C14.5 12.828 13.828 13.5 13 13.5H3C2.172 13.5 1.5 12.828 1.5 12V4Z', stroke: 'currentColor', strokeWidth: 1.5, strokeLinejoin: 'round' })
 );
 
+// ── Menu icon set (14×14) ──────────────────────────────────────────────────
+const SvgMiMd    = () => React.createElement('svg',{width:14,height:14,viewBox:'0 0 16 16',fill:'none'},React.createElement('path',{d:'M8 2V11M8 11L5 8M8 11L11 8',stroke:'currentColor',strokeWidth:1.5,strokeLinecap:'round',strokeLinejoin:'round'}),React.createElement('path',{d:'M3 14H13',stroke:'currentColor',strokeWidth:1.5,strokeLinecap:'round'}));
+const SvgMiTxt   = () => React.createElement('svg',{width:14,height:14,viewBox:'0 0 16 16',fill:'none'},React.createElement('rect',{x:2.5,y:1.5,width:11,height:13,rx:1.5,stroke:'currentColor',strokeWidth:1.5}),React.createElement('path',{d:'M5.5 5.5H10.5M5.5 8H10.5M5.5 10.5H8.5',stroke:'currentColor',strokeWidth:1.5,strokeLinecap:'round'}));
+const SvgMiCode  = () => React.createElement('svg',{width:14,height:14,viewBox:'0 0 16 16',fill:'none'},React.createElement('path',{d:'M5 4L2 8L5 12M11 4L14 8L11 12',stroke:'currentColor',strokeWidth:1.5,strokeLinecap:'round',strokeLinejoin:'round'}),React.createElement('path',{d:'M9 2L7 14',stroke:'currentColor',strokeWidth:1.5,strokeLinecap:'round'}));
+const SvgMiImg   = () => React.createElement('svg',{width:14,height:14,viewBox:'0 0 16 16',fill:'none'},React.createElement('rect',{x:1.5,y:2.5,width:13,height:11,rx:2,stroke:'currentColor',strokeWidth:1.5}),React.createElement('path',{d:'M1.5 10.5L5 7.5L7.5 10L10 8L14.5 12',stroke:'currentColor',strokeWidth:1.5,strokeLinecap:'round',strokeLinejoin:'round'}),React.createElement('circle',{cx:5.5,cy:5.5,r:1,fill:'currentColor'}));
+const SvgMiCloud = () => React.createElement('svg',{width:14,height:14,viewBox:'0 0 16 16',fill:'none'},React.createElement('path',{d:'M4 11C2.3 11 1 9.7 1 8C1 6.5 2.1 5.2 3.5 5C3.6 3.3 5 2 6.8 2C8.3 2 9.6 3 10.1 4.4C10.3 4.4 10.4 4.4 10.5 4.4C11.9 4.4 13 5.5 13 6.9C13 8.2 12 9.2 10.7 9.3',stroke:'currentColor',strokeWidth:1.5,strokeLinecap:'round'}),React.createElement('path',{d:'M7 9V14',stroke:'currentColor',strokeWidth:1.5,strokeLinecap:'round'}),React.createElement('path',{d:'M5 12L7 14L9 12',stroke:'currentColor',strokeWidth:1.5,strokeLinecap:'round',strokeLinejoin:'round'}));
+const SvgMiTable = () => React.createElement('svg',{width:14,height:14,viewBox:'0 0 16 16',fill:'none'},React.createElement('rect',{x:1.5,y:1.5,width:13,height:13,rx:2,stroke:'currentColor',strokeWidth:1.5}),React.createElement('path',{d:'M1.5 6.5H14.5M6.5 1.5V14.5',stroke:'currentColor',strokeWidth:1.5}));
+const SvgMiLink  = () => React.createElement('svg',{width:14,height:14,viewBox:'0 0 16 16',fill:'none'},React.createElement('path',{d:'M7 3H3C2.2 3 1.5 3.7 1.5 4.5V13C1.5 13.8 2.2 14.5 3 14.5H11.5C12.3 14.5 13 13.8 13 13V9',stroke:'currentColor',strokeWidth:1.5,strokeLinecap:'round'}),React.createElement('path',{d:'M9.5 1.5H14.5V6.5M14.5 1.5L8 8',stroke:'currentColor',strokeWidth:1.5,strokeLinecap:'round',strokeLinejoin:'round'}));
+const SvgMiSpark = () => React.createElement('svg',{width:14,height:14,viewBox:'0 0 16 16',fill:'none'},React.createElement('path',{d:'M8 1.5V3M8 13V14.5M1.5 8H3M13 8H14.5M3.9 3.9L5 5M11 11L12.1 12.1M12.1 3.9L11 5M5 11L3.9 12.1',stroke:'currentColor',strokeWidth:1.5,strokeLinecap:'round'}),React.createElement('circle',{cx:8,cy:8,r:2.5,stroke:'currentColor',strokeWidth:1.5}));
+const SvgMiPen   = () => React.createElement('svg',{width:14,height:14,viewBox:'0 0 16 16',fill:'none'},React.createElement('path',{d:'M11 2L14 5L5.5 13.5L1.5 14.5L2.5 10.5L11 2Z',stroke:'currentColor',strokeWidth:1.5,strokeLinejoin:'round'}),React.createElement('path',{d:'M9.5 3.5L12.5 6.5',stroke:'currentColor',strokeWidth:1.5}));
+const SvgMiStack = () => React.createElement('svg',{width:14,height:14,viewBox:'0 0 16 16',fill:'none'},React.createElement('path',{d:'M8 1.5L14.5 5L8 8.5L1.5 5L8 1.5Z',stroke:'currentColor',strokeWidth:1.5,strokeLinejoin:'round'}),React.createElement('path',{d:'M1.5 8.5L8 12L14.5 8.5',stroke:'currentColor',strokeWidth:1.5,strokeLinecap:'round'}),React.createElement('path',{d:'M1.5 11.5L8 15L14.5 11.5',stroke:'currentColor',strokeWidth:1.5,strokeLinecap:'round'}));
+const SvgMiPlay  = () => React.createElement('svg',{width:14,height:14,viewBox:'0 0 16 16',fill:'none'},React.createElement('path',{d:'M5 3L13 8L5 13V3Z',stroke:'currentColor',strokeWidth:1.5,strokeLinejoin:'round'}));
+
+// Renders an icon + text label for menu items
+const mi = (Icon, text) => React.createElement('span', { style: { display: 'inline-flex', alignItems: 'center', gap: 8 } },
+    React.createElement('span', { style: { display: 'inline-flex', width: 16, flexShrink: 0, color: 'var(--ds-text-3)' } }, React.createElement(Icon)),
+    text
+);
+
 const VALID_TABS = new Set(['minutes', 'transcript', 'requirements', 'stakeholders']);
 
 function pickDefaultTab(status, preferred) {
@@ -337,46 +356,58 @@ function MeetingDetail({ meeting, onBack, initialTab, onTabChange }) {
         return (
             <div className="minutes-content">
                 {m.summary && (
-                    <Card title="会议摘要" bordered={false} style={{ marginBottom: 16 }}>
-                        <Typography.Paragraph>{m.summary}</Typography.Paragraph>
-                    </Card>
+                    <div className="ds-minutes-section">
+                        <div className="ds-minutes-section-title">会议摘要</div>
+                        <div className="ds-minutes-body">
+                            <p className="ds-minutes-paragraph">{m.summary}</p>
+                        </div>
+                    </div>
                 )}
                 {m.key_points?.length > 0 && (
-                    <Card title="讨论要点" bordered={false} style={{ marginBottom: 16 }}>
-                        <ul>
-                            {m.key_points.map((p, i) => (
-                                <li key={i} style={{ marginBottom: 8 }}>
-                                    {p.topic && <strong>{p.topic}：</strong>}
-                                    {typeof p === 'string' ? p : p.content}
-                                </li>
-                            ))}
-                        </ul>
-                    </Card>
+                    <div className="ds-minutes-section">
+                        <div className="ds-minutes-section-title accent-blue">讨论要点</div>
+                        <div className="ds-minutes-body">
+                            <ul className="ds-minutes-list">
+                                {m.key_points.map((p, i) => (
+                                    <li key={i}>
+                                        {p.topic && <span className="ds-minutes-topic">{p.topic}：</span>}
+                                        {typeof p === 'string' ? p : p.content}
+                                    </li>
+                                ))}
+                            </ul>
+                        </div>
+                    </div>
                 )}
                 {m.decisions?.length > 0 && (
-                    <Card title="决策事项" bordered={false} style={{ marginBottom: 16 }}>
-                        <ul>
-                            {m.decisions.map((d, i) => (
-                                <li key={i} style={{ marginBottom: 8 }}>
-                                    {typeof d === 'string' ? d : d.content}
-                                    {d.owner && <span style={{ color: 'var(--color-text-3)', marginLeft: 8 }}>(负责人: {d.owner})</span>}
-                                </li>
-                            ))}
-                        </ul>
-                    </Card>
+                    <div className="ds-minutes-section">
+                        <div className="ds-minutes-section-title accent-green">决策事项</div>
+                        <div className="ds-minutes-body">
+                            <ul className="ds-minutes-list">
+                                {m.decisions.map((d, i) => (
+                                    <li key={i}>
+                                        {typeof d === 'string' ? d : d.content}
+                                        {d.owner && <span className="ds-minutes-meta">· {d.owner}</span>}
+                                    </li>
+                                ))}
+                            </ul>
+                        </div>
+                    </div>
                 )}
                 {m.action_items?.length > 0 && (
-                    <Card title="待办事项" bordered={false} style={{ marginBottom: 16 }}>
-                        <ul>
-                            {m.action_items.map((item, i) => (
-                                <li key={i} style={{ marginBottom: 8 }}>
-                                    {item.owner && <strong>{item.owner}：</strong>}
-                                    {item.task || item.content || (typeof item === 'string' ? item : '')}
-                                    {item.deadline && <span style={{ color: 'var(--color-danger-light-4)', marginLeft: 8 }}>(截止: {item.deadline})</span>}
-                                </li>
-                            ))}
-                        </ul>
-                    </Card>
+                    <div className="ds-minutes-section">
+                        <div className="ds-minutes-section-title">待办事项</div>
+                        <div className="ds-minutes-body">
+                            <ul className="ds-minutes-list">
+                                {m.action_items.map((item, i) => (
+                                    <li key={i}>
+                                        {item.owner && <span className="ds-minutes-owner">{item.owner}</span>}
+                                        {item.task || item.content || (typeof item === 'string' ? item : '')}
+                                        {item.deadline && <span className="ds-minutes-deadline">{item.deadline}</span>}
+                                    </li>
+                                ))}
+                            </ul>
+                        </div>
+                    </div>
                 )}
             </div>
         );
@@ -975,18 +1006,18 @@ function MeetingDetail({ meeting, onBack, initialTab, onTabChange }) {
             else if (key === 'feishu-open' && meetingData.feishu_url) window.open(meetingData.feishu_url, '_blank');
             else if (key === 'bitable-open' && meetingData.bitable_url) window.open(meetingData.bitable_url, '_blank');
         }}>
-            <Menu.Item key="md" disabled={!canExport}>📥 &nbsp;下载 Markdown</Menu.Item>
-            <Menu.Item key="txt" disabled={!canExport}>📄 &nbsp;下载纯文本</Menu.Item>
-            <Menu.Item key="html" disabled={!canExport}>🌐 &nbsp;下载 HTML</Menu.Item>
-            <Menu.Item key="png" disabled={!canExport}>🖼 &nbsp;导出为 PNG 图片</Menu.Item>
+            <Menu.Item key="md" disabled={!canExport}>{mi(SvgMiMd, '下载 Markdown')}</Menu.Item>
+            <Menu.Item key="txt" disabled={!canExport}>{mi(SvgMiTxt, '下载纯文本')}</Menu.Item>
+            <Menu.Item key="html" disabled={!canExport}>{mi(SvgMiCode, '下载 HTML')}</Menu.Item>
+            <Menu.Item key="png" disabled={!canExport}>{mi(SvgMiImg, '导出为 PNG 图片')}</Menu.Item>
             <Menu.Item key="divider-1" disabled style={{ height: 1, padding: 0, margin: '4px 0', background: 'var(--ds-line)' }} />
-            <Menu.Item key="feishu" disabled={!canExport}>☁️ &nbsp;导出到飞书文档</Menu.Item>
-            <Menu.Item key="bitable" disabled={!canExport}>📊 &nbsp;同步需求到多维表格</Menu.Item>
+            <Menu.Item key="feishu" disabled={!canExport}>{mi(SvgMiCloud, '导出到飞书文档')}</Menu.Item>
+            <Menu.Item key="bitable" disabled={!canExport}>{mi(SvgMiTable, '同步需求到多维表格')}</Menu.Item>
             {meetingData.feishu_url && (
-                <Menu.Item key="feishu-open">🔗 &nbsp;打开已导出的飞书文档</Menu.Item>
+                <Menu.Item key="feishu-open">{mi(SvgMiLink, '打开已导出的飞书文档')}</Menu.Item>
             )}
             {meetingData.bitable_url && (
-                <Menu.Item key="bitable-open">🔗 &nbsp;打开已同步的多维表格</Menu.Item>
+                <Menu.Item key="bitable-open">{mi(SvgMiLink, '打开已同步的多维表格')}</Menu.Item>
             )}
         </Menu>
     );
@@ -998,11 +1029,11 @@ function MeetingDetail({ meeting, onBack, initialTab, onTabChange }) {
             else if (key === 'extract') handleManualAction('extract');
             else if (key === 'resume') handleResume();
         }}>
-            <Menu.Item key="polish" disabled={!canRerun}>🔆 &nbsp;重新润色转写</Menu.Item>
-            <Menu.Item key="summarize" disabled={!canRerun}>📝 &nbsp;重新生成纪要</Menu.Item>
-            <Menu.Item key="extract" disabled={!canRerun}>🗂 &nbsp;重新提取需求</Menu.Item>
+            <Menu.Item key="polish" disabled={!canRerun}>{mi(SvgMiSpark, '重新润色转写')}</Menu.Item>
+            <Menu.Item key="summarize" disabled={!canRerun}>{mi(SvgMiPen, '重新生成纪要')}</Menu.Item>
+            <Menu.Item key="extract" disabled={!canRerun}>{mi(SvgMiStack, '重新提取需求')}</Menu.Item>
             {meetingData.status !== 'completed' && (
-                <Menu.Item key="resume">▶️ &nbsp;从断点恢复转写</Menu.Item>
+                <Menu.Item key="resume">{mi(SvgMiPlay, '从断点恢复转写')}</Menu.Item>
             )}
         </Menu>
     );
