@@ -441,7 +441,7 @@ function MeetingDetail({ meeting, onBack, initialTab, onTabChange }) {
                                 <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 8 }}>
                                     <Typography.Text type="secondary">
                                         <Spin size="small" style={{ marginRight: 8 }} />
-                                        {meetingData.asr_engine === 'whisper' ? '本地 Faster-Whisper' : (meetingData.asr_engine === 'xunfei' ? '讯飞 ASR' : '系统默认转译')} 正在持续转写中...
+                                        {asrLabel} 正在持续转写中...
                                     </Typography.Text>
                                     <Typography.Text type="secondary">
                                         进度: {meetingData.done_chunks || 0} / {meetingData.total_chunks || 0}
@@ -981,12 +981,15 @@ function MeetingDetail({ meeting, onBack, initialTab, onTabChange }) {
         return <span className="ds-badge tone-gray">{s}</span>;
     };
 
-    const asrLabel =
-        !meetingData.asr_engine || meetingData.asr_engine === 'whisper'
-            ? '本地 Whisper'
-            : meetingData.asr_engine === 'xunfei'
-                ? '讯飞 ASR'
-                : meetingData.asr_engine;
+    const ASR_LABELS = {
+        whisper: '本地 Whisper',
+        xiaomi: '小米 MiMo ASR',
+        xunfei: '讯飞 ASR',
+        text: '文本导入',
+    };
+    const asrLabel = meetingData.asr_engine
+        ? (ASR_LABELS[meetingData.asr_engine] || meetingData.asr_engine)
+        : '未知';
 
     // -----------------------------------------------------------------
     // Top-right action dropdowns. All exports and all manual reruns are

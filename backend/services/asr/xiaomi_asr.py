@@ -92,25 +92,3 @@ class XiaomiASRClient:
         await asyncio.gather(*tasks)
 
         logger.info("Xiaomi ASR: Completed all concurrent tasks")
-
-                        async with async_session_factory() as db_session:
-                            full_transcript = "\n".join([p for p in transcript_parts if p])
-                            db_q = sql_text("""
-                                UPDATE meetings 
-                                SET done_chunks = done_chunks + 1, 
-                                    raw_transcript = :transcript
-                                WHERE id = :mid
-                            """)
-                            await db_session.execute(db_q, {"transcript": full_transcript, "mid": meeting_id})
-                            await db_session.commit()
-                            logger.info("Meeting %s: Direct DB sync successful for chunk %d/%d", meeting_id, sum(1 for p in transcript_parts if p), total_count)
-                    except Exception as e:
-                        logger.error("Meeting %s: Direct DB sync FAILED: %s", meeting_id, e)
-            return text
-
-        tasks = [_transcribe_chunk_with_db(chunk, i, total) for i, chunk in enumerate(chunks)]
-        results = await asyncio.gather(*tasks)
-        
-        # Join final results in original order
-        logger.info("Xiaomi ASR: Completed all concurrent tasks")
-        return "\n".join([r for r in results if r])
