@@ -336,6 +336,7 @@ async def get_meeting(
         "meeting_minutes": meeting.meeting_minutes or "",
         "minutes": minutes_obj,  # Parsed dict for frontend
         "status": meeting.status,
+        "asr_engine": meeting.asr_engine,
         "total_chunks": meeting.total_chunks,
         "done_chunks": meeting.done_chunks,
         "feishu_url": meeting.feishu_url,

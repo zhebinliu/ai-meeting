@@ -171,32 +171,37 @@ function MeetingDetail({ meeting, onBack, initialTab, onTabChange }) {
         }
     };
 
-    // Typewriter effect logic
+    // Typewriter effect — only animate while ASR is actively streaming.
+    // Once the meeting is past the transcribing stage, dump the whole text
+    // at once so users don't wait through a multi-minute replay every visit.
     React.useEffect(() => {
         const targetText = meetingData?.raw_transcript || '';
+        const stillTranscribing = meetingData?.status === 'transcribing';
+
+        if (!stillTranscribing) {
+            if (displayedText !== targetText) setDisplayedText(targetText);
+            if (typingTimer.current) {
+                clearTimeout(typingTimer.current);
+                typingTimer.current = null;
+            }
+            return;
+        }
+
         if (displayedText.length < targetText.length) {
             if (typingTimer.current) return;
-            
-            const startTyping = () => {
-                const diff = targetText.length - displayedText.length;
-                // Faster typing if we are lagging behind a lot
-                const speed = diff > 100 ? 5 : diff > 20 ? 20 : 50;
-                
-                typingTimer.current = setTimeout(() => {
-                    setDisplayedText(prev => {
-                        const nextChar = targetText[prev.length];
-                        if (nextChar !== undefined) {
-                            return prev + nextChar;
-                        }
-                        return prev;
-                    });
-                    typingTimer.current = null;
-                }, speed);
-            };
-            startTyping();
+            const diff = targetText.length - displayedText.length;
+            const speed = diff > 100 ? 5 : diff > 20 ? 20 : 50;
+
+            typingTimer.current = setTimeout(() => {
+                setDisplayedText(prev => {
+                    const nextChar = targetText[prev.length];
+                    return nextChar !== undefined ? prev + nextChar : prev;
+                });
+                typingTimer.current = null;
+            }, speed);
         }
         scrollToBottom();
-    }, [meetingData?.raw_transcript, displayedText]);
+    }, [meetingData?.raw_transcript, meetingData?.status, displayedText]);
 
     // A ref lets fetchMeeting see the latest editedMinutes without being
     // re-created on every edit (which would otherwise thrash the polling
