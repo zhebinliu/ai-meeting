@@ -67,7 +67,7 @@ pip install -r requirements.txt
 ### 3. Run the Application
 
 ```bash
-uvicorn main:app --reload --host 0.0.0.0 --port 8000
+uvicorn backend.main:app --reload --host 0.0.0.0 --port 8000
 ```
 
 Or use Docker:

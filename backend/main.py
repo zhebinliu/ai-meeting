@@ -18,7 +18,7 @@ from fastapi.staticfiles import StaticFiles
 
 from backend.config import settings
 from backend.database import init_db
-from backend.routes import meeting, websocket
+from backend.routes import meeting, websocket, template
 
 logging.basicConfig(
     level=logging.INFO,
@@ -61,6 +61,7 @@ app.add_middleware(
 # ---------------------------------------------------------------------------
 
 app.include_router(meeting.router)
+app.include_router(template.router)
 app.include_router(websocket.router)
 
 

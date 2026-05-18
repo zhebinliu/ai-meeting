@@ -115,6 +115,40 @@ function MeetingDetail({ meeting, onBack, initialTab, onTabChange }) {
     const [projectSubmitting, setProjectSubmitting] = React.useState(false);
 
     // ------------------------------------------------------------------
+    // Template evolution state
+    // ------------------------------------------------------------------
+    const [templateModalOpen, setTemplateModalOpen] = React.useState(false);
+    const [activeTemplate, setActiveTemplate] = React.useState(null);
+    const [allTemplates, setAllTemplates] = React.useState([]);
+    const [templateLoading, setTemplateLoading] = React.useState(false);
+    const [evolving, setEvolving] = React.useState(false);
+
+    const loadTemplateData = React.useCallback(async () => {
+        setTemplateLoading(true);
+        try {
+            const [active, list] = await Promise.all([
+                window.api.getActiveTemplate(),
+                window.api.listTemplates(),
+            ]);
+            setActiveTemplate(active && active.id ? active : null);
+            setAllTemplates(list || []);
+        } catch (err) {
+            console.warn('Failed to load template data:', err);
+        } finally {
+            setTemplateLoading(false);
+        }
+    }, []);
+
+    // ------------------------------------------------------------------
+    // Template evolution state
+    // ------------------------------------------------------------------
+    const [templateModalOpen, setTemplateModalOpen] = React.useState(false);
+    const [activeTemplate, setActiveTemplate] = React.useState(null);
+    const [allTemplates, setAllTemplates] = React.useState([]);
+    const [templateLoading, setTemplateLoading] = React.useState(false);
+    const [evolving, setEvolving] = React.useState(false);
+
+    // ------------------------------------------------------------------
     // In-place edits made inside the editable template are committed to
     // this local override whenever the user switches back to read mode
     // (or clicks export). Read view + exports always prefer this copy
@@ -136,7 +170,15 @@ function MeetingDetail({ meeting, onBack, initialTab, onTabChange }) {
         };
     };
 
-    /** Persist live DOM edits into state + propagate title to header. */
+    const saveEditedMinutes = React.useCallback(async (snap) => {
+        try {
+            await window.api.saveEditedMinutes(meetingData.id, snap);
+        } catch (err) {
+            console.warn('Failed to save edited minutes:', err);
+        }
+    }, [meetingData?.id]);
+
+    /** Persist live DOM edits into state + save to backend for template evolution. */
     const commitEdits = () => {
         const snap = snapshotFromDom();
         if (!snap) return;
@@ -144,6 +186,12 @@ function MeetingDetail({ meeting, onBack, initialTab, onTabChange }) {
         if (snap.title && snap.title !== meetingData.title) {
             // Reflect edited title in the detail page header/metrics.
             setMeetingData((prev) => ({ ...prev, title: snap.title }));
+        }
+        // Save to backend asynchronously (best-effort, fire-and-forget).
+        // Only save if there's something to learn from.
+        const hasContent = snap.summary || (snap.key_points && snap.key_points.length > 0);
+        if (hasContent) {
+            saveEditedMinutes(snap);
         }
     };
 
@@ -1157,6 +1205,14 @@ function MeetingDetail({ meeting, onBack, initialTab, onTabChange }) {
                                 <Dropdown droplist={moreMenu} position="br" trigger="click">
                                     <Button type="outline" icon={<IconMore />} loading={loading}>更多</Button>
                                 </Dropdown>
+                                <Tooltip content="管理会议纪要模板，或根据用户编辑记录自动迭代模板">
+                                    <Button type="text" size="default" onClick={() => {
+                                        setTemplateModalOpen(true);
+                                        loadTemplateData();
+                                    }}>
+                                        模板
+                                    </Button>
+                                </Tooltip>
                             </Space>
                         </div>
                     </div>
@@ -1389,6 +1445,129 @@ function MeetingDetail({ meeting, onBack, initialTab, onTabChange }) {
                         />
                     )}
                 </div>
+            </Modal>
+
+            {/* ---- Template Evolution Modal ---------------------------- */}
+            <Modal
+                title="会议纪要模板管理"
+                visible={templateModalOpen}
+                onCancel={() => setTemplateModalOpen(false)}
+                footer={
+                    <Space>
+                        <Button type="primary" loading={evolving} onClick={async () => {
+                            setEvolving(true);
+                            try {
+                                const result = await window.api.evolveTemplate('combined');
+                                Message.success(result.message || '模板迭代已启动，请稍候刷新');
+                                // Reload template data after a short delay
+                                setTimeout(loadTemplateData, 5000);
+                            } catch (err) {
+                                Message.error('模板迭代失败：' + (err.message || err));
+                            } finally {
+                                setEvolving(false);
+                            }
+                        }}>
+                            迭代模板
+                        </Button>
+                        <Button onClick={() => setTemplateModalOpen(false)}>关闭</Button>
+                    </Space>
+                }
+                style={{ width: 640 }}
+            >
+                {templateLoading ? (
+                    <div style={{ padding: 40, textAlign: 'center' }}><Spin tip="加载模板数据..." /></div>
+                ) : (
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
+                        {/* Active template info */}
+                        {activeTemplate ? (
+                            <Card title={<Space><IconCheckCircle style={{ color: 'var(--color-success-6)' }} /><span>当前激活模板 v{activeTemplate.version}</span></Space>} size="small">
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
+                                    <Typography.Text style={{ fontSize: 13, fontWeight: 600 }}>{activeTemplate.name}</Typography.Text>
+                                    <Typography.Text type="secondary" style={{ fontSize: 12 }}>
+                                        {activeTemplate.description || '无描述'}
+                                    </Typography.Text>
+                                    {activeTemplate.change_log && (
+                                        <div style={{ background: 'var(--color-fill-2)', padding: '6px 10px', borderRadius: 6, fontSize: 12, color: 'var(--color-text-2)' }}>
+                                            变更说明：{activeTemplate.change_log}
+                                        </div>
+                                    )}
+                                    {activeTemplate.format_requirements && (
+                                        <div>
+                                            <Typography.Text style={{ fontSize: 12, color: 'var(--color-text-3)', fontWeight: 600 }}>格式要求：</Typography.Text>
+                                            <Typography.Text style={{ fontSize: 12, whiteSpace: 'pre-wrap', display: 'block', marginTop: 2, color: 'var(--color-text-2)', background: 'var(--color-fill-2)', padding: 8, borderRadius: 4 }}>{activeTemplate.format_requirements}</Typography.Text>
+                                        </div>
+                                    )}
+                                    {activeTemplate.style_preferences && (
+                                        <div>
+                                            <Typography.Text style={{ fontSize: 12, color: 'var(--color-text-3)', fontWeight: 600 }}>风格偏好：</Typography.Text>
+                                            <Typography.Text style={{ fontSize: 12, whiteSpace: 'pre-wrap', display: 'block', marginTop: 2, color: 'var(--color-text-2)', background: 'var(--color-fill-2)', padding: 8, borderRadius: 4 }}>{activeTemplate.style_preferences}</Typography.Text>
+                                        </div>
+                                    )}
+                                </div>
+                            </Card>
+                        ) : (
+                            <Card title="模板" size="small">
+                                <Typography.Text type="secondary">暂无活跃模板（将使用默认模板）</Typography.Text>
+                            </Card>
+                        )}
+
+                        {/* Template history */}
+                        {allTemplates.length > 0 && (
+                            <Card title={<Space><IconOrderedList /><span>历史模板（{allTemplates.length} 个版本）</span></Space>} size="small">
+                                <div style={{ display: 'flex', flexDirection: 'column', gap: 6 }}>
+                                    {allTemplates.map((tpl) => (
+                                        <div key={tpl.id} style={{
+                                            display: 'flex',
+                                            alignItems: 'center',
+                                            justifyContent: 'space-between',
+                                            padding: '6px 8px',
+                                            borderRadius: 6,
+                                            background: tpl.is_active ? 'var(--color-fill-2)' : 'transparent',
+                                            border: tpl.is_active ? '1px solid var(--color-primary-6)' : '1px solid transparent',
+                                        }}>
+                                            <div style={{ flex: 1, minWidth: 0 }}>
+                                                <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                                                    <Typography.Text style={{ fontSize: 13, fontWeight: tpl.is_active ? 600 : 400 }}>
+                                                        {tpl.name || `v${tpl.version}`}
+                                                    </Typography.Text>
+                                                    {tpl.is_active && <Tag color="green" size="small">当前</Tag>}
+                                                    <Tag size="small">{tpl.evolution_method}</Tag>
+                                                </div>
+                                                {tpl.change_log && (
+                                                    <Typography.Text type="secondary" style={{ fontSize: 11, display: 'block', marginTop: 2 }}>
+                                                        {tpl.change_log}
+                                                    </Typography.Text>
+                                                )}
+                                            </div>
+                                            {!tpl.is_active && (
+                                                <Button size="mini" type="text" onClick={async () => {
+                                                    try {
+                                                        await window.api.activateTemplate(tpl.id);
+                                                        Message.success(`已切换到 ${tpl.name}`);
+                                                        loadTemplateData();
+                                                    } catch (err) {
+                                                        Message.error('切换失败：' + (err.message || err));
+                                                    }
+                                                }}>切换</Button>
+                                            )}
+                                        </div>
+                                    ))}
+                                </div>
+                            </Card>
+                        )}
+
+                        {/* Evolution hint */}
+                        <Alert
+                            type="info"
+                            content={
+                                <span style={{ fontSize: 12 }}>
+                                    点击「迭代模板」按钮，系统将分析你手动编辑过的会议纪要（编辑版 vs AI 原始版）以及知识库中其他项目的纪要文档，
+                                    自动提炼出更好的模板结构和格式要求。迭代是<strong>异步的</strong>，需要 30-60 秒，完成后模板会自动切换到新版。
+                                </span>
+                            }
+                        />
+                    </div>
+                )}
             </Modal>
         </div>
     );
