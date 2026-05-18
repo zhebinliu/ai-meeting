@@ -24,6 +24,10 @@ class MinutesGenerator:
 
     The output is a dict with keys: ``summary``, ``attendees``,
     ``key_points``, ``decisions``, and ``action_items``.
+
+    Optionally accepts a template dict (from ``MeetingTemplate``) whose
+    ``format_requirements``, ``style_preferences`` and ``schema_structure``
+    fields are injected into the system prompt.
     """
 
     def __init__(self, llm_client: LLMClient) -> None:
@@ -39,6 +43,7 @@ class MinutesGenerator:
         polished_transcript: str,
         meeting_title: str = "",
         temperature: float = 0.3,
+        template: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """Generate structured meeting minutes from a polished transcript.
 
@@ -46,6 +51,9 @@ class MinutesGenerator:
             polished_transcript: Cleaned meeting transcript text.
             meeting_title: Optional meeting title for context.
             temperature: LLM temperature (lower = more deterministic).
+            template: Optional template dict with keys ``format_requirements``,
+                ``style_preferences``, ``schema_structure``. If provided,
+                the system prompt is augmented with these preferences.
 
         Returns:
             Dict with keys:
@@ -61,8 +69,10 @@ class MinutesGenerator:
         if not polished_transcript or not polished_transcript.strip():
             raise ValueError("polished_transcript must not be empty")
 
+        system_prompt = self._build_system_prompt(template)
+
         messages = [
-            {"role": "system", "content": MINUTES_SYSTEM},
+            {"role": "system", "content": system_prompt},
             {
                 "role": "user",
                 "content": MINUTES_USER.format(
@@ -73,9 +83,10 @@ class MinutesGenerator:
         ]
 
         logger.info(
-            "Generating minutes for '%s' (%d chars)",
+            "Generating minutes for '%s' (%d chars)%s",
             meeting_title,
             len(polished_transcript),
+            " with template" if template else "",
         )
         raw = await self._llm.chat(messages, temperature=temperature)
 
@@ -84,6 +95,36 @@ class MinutesGenerator:
     # ------------------------------------------------------------------
     # Internal helpers
     # ------------------------------------------------------------------
+
+    @staticmethod
+    def _build_system_prompt(
+        template: Optional[Dict[str, Any]] = None,
+    ) -> str:
+        """Augment the base MINUTES_SYSTEM with template preferences.
+
+        Args:
+            template: Optional dict with ``format_requirements``,
+                ``style_preferences``, and/or ``schema_structure`` keys.
+
+        Returns:
+            The augmented system prompt string.
+        """
+        if template is None:
+            return MINUTES_SYSTEM
+
+        parts = [MINUTES_SYSTEM]
+        f = (template.get("format_requirements") or "").strip()
+        s = (template.get("style_preferences") or "").strip()
+        sc = (template.get("schema_structure") or "").strip()
+
+        if f:
+            parts.append(f"\n## 格式要求\n{f}\n")
+        if s:
+            parts.append(f"\n## 风格偏好\n{s}\n")
+        if sc:
+            parts.append(f"\n## 期望的输出结构\n{sc}\n")
+
+        return "\n".join(parts)
 
     @staticmethod
     def _parse_response(raw: str) -> Dict[str, Any]:

@@ -46,12 +46,13 @@ class MeetingAIPipeline:
         requirement_context: Optional[Dict[str, Any]] = None,
         meeting_id: int | None = None,
         kb_docs: Optional[list[Dict[str, Any]]] = None,
+        template: Optional[Dict[str, Any]] = None,
     ) -> Dict[str, Any]:
         """Run the full processing pipeline.
 
         Steps:
             1. Polish the raw transcript.
-            2. Generate structured meeting minutes.
+            2. Generate structured meeting minutes (with optional template).
             3. Extract customer requirements.
             4. Extract stakeholder graph (uses minutes + optional KB docs).
 
@@ -65,6 +66,10 @@ class MeetingAIPipeline:
             kb_docs: Optional list of KB document detail dicts (each with
                 ``id``, ``filename``, ``markdown_content``, ``summary``)
                 whose people will be merged into the stakeholder graph.
+            template: Optional template dict (from ``MeetingTemplate``) whose
+                ``format_requirements``, ``style_preferences`` and
+                ``schema_structure`` fields are injected into the minutes
+                generation system prompt.
 
         Returns:
             Dict with keys:
@@ -73,7 +78,12 @@ class MeetingAIPipeline:
             - **requirements**: List of requirement dicts.
             - **stakeholder_map**: ``{stakeholders: [...], relations: [...]}``
         """
-        logger.info("Pipeline start — title='%s', %d chars", meeting_title, len(raw_transcript))
+        logger.info(
+            "Pipeline start — title='%s', %d chars%s",
+            meeting_title,
+            len(raw_transcript),
+            " (with template)" if template else "",
+        )
 
         # Step 1: Polish
         polished = await self.polisher.polish(raw_transcript)
@@ -82,7 +92,11 @@ class MeetingAIPipeline:
         import asyncio
 
         minutes, requirements = await asyncio.gather(
-            self.minutes_gen.generate(polished, meeting_title=meeting_title),
+            self.minutes_gen.generate(
+                polished,
+                meeting_title=meeting_title,
+                template=template,
+            ),
             self.req_extractor.extract(polished, context=requirement_context),
         )
 

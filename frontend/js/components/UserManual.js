@@ -37,6 +37,10 @@
                         <Paragraph>
                             在<strong>会议列表</strong>查看历史记录 → 通过右上角<strong>新建会议</strong>创建任务 → 等待转写与 AI 处理完成 → 在<strong>详情页</strong>查看纪要、导出或同步到实施知识库。
                         </Paragraph>
+                        <Paragraph type="secondary" style={{ fontSize: 12 }}>
+                            系统内置<strong>模板自动迭代</strong>能力：你编辑会议纪要后，系统会保存编辑版本；
+                            通过详情页的「模板」功能可触发 AI 分析你的编辑偏好，自动优化后续纪要生成的模板和格式要求。
+                        </Paragraph>
                     </Section>
 
                     <Divider style={{ margin: '16px 0' }} />
@@ -89,7 +93,33 @@
 
                     <Divider style={{ margin: '16px 0' }} />
 
-                    <Section title="5. 同步到实施知识库">
+                    <Section title="5. 会议纪要模板管理">
+                        <Paragraph>
+                            详情页工具栏右上角新增<strong>「模板」</strong>按钮，点击打开模板管理面板，用于管理会议纪要的生成模板。
+                        </Paragraph>
+                        <Paragraph>
+                            <strong>当前激活模板</strong>：面板顶部展示当前使用的模板版本、变更说明、格式要求和风格偏好。
+                            每次 AI 生成会议纪要时，这些配置会自动注入到 AI 提示词中，使输出更符合你的预期。
+                        </Paragraph>
+                        <Paragraph>
+                            <strong>历史模板</strong>：面板中部列出所有历史版本，可一键切换回旧版模板。
+                            如果某次演化后的模板效果不理想，可以随时回退。
+                        </Paragraph>
+                        <Paragraph>
+                            <strong>迭代模板</strong>：点击面板底部的「迭代模板」按钮，触发后台异步分析。
+                            系统会收集近期你手动编辑过的会议纪要（对比 AI 原始版与用户编辑版），
+                            同时从知识库拉取其他项目的会议纪要文档作为参考，然后通过 LLM 分析共性模式，
+                            自动生成一个新的、更优的模板版本并切换到它。
+                        </Paragraph>
+                        <Paragraph type="secondary" style={{ fontSize: 12 }}>
+                            迭代是异步的，约需 30-60 秒完成；在此期间可以关闭面板继续操作。迭代成功后刷新面板即可看到新版本。
+                            编辑纪要时自动保存编辑版用于模板学习，无需额外操作。
+                        </Paragraph>
+                    </Section>
+
+                    <Divider style={{ margin: '16px 0' }} />
+
+                    <Section title="6. 同步到实施知识库">
                         <Paragraph>
                             详情页可<strong>同步会议纪要</strong>（Markdown）到外部实施知识库；首次需在环境变量中配置知识库地址与账号（详见部署说明）。
                         </Paragraph>
@@ -100,7 +130,7 @@
 
                     <Divider style={{ margin: '16px 0' }} />
 
-                    <Section title="6. 常见问题">
+                    <Section title="7. 常见问题">
                         <Paragraph>
                             <strong>一直处理中</strong>：确认后端与 LLM、ASR 配置正常；列表页会轮询刷新，也可进入详情查看状态说明。
                         </Paragraph>

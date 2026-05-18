@@ -41,6 +41,9 @@ class Meeting(Base):
     stakeholder_kb_doc_id: str | None = Column(String(64), nullable=True, default=None)
     stakeholder_kb_url: str | None = Column(Text, nullable=True, default=None)
     stakeholder_kb_synced_at: datetime | None = Column(DateTime, nullable=True, default=None)
+    # --- User-edited minutes (for template evolution) ---
+    # JSON string capturing the user's manual edits to the AI-generated minutes
+    edited_minutes: str | None = Column(Text, nullable=True, default=None)
     created_at: datetime = Column(DateTime, nullable=False, default=datetime.utcnow)
 
     def __repr__(self) -> str:

@@ -356,9 +356,101 @@ const api = {
         }
         return res.json();
     },
+
+    /**
+     * Save user-edited meeting minutes for template evolution.
+     * Called when the user switches from edit mode back to read mode.
+     * @param {string|number} id - Meeting ID
+     * @param {Object} editedMinutes - The edited minutes object from the DOM
+     */
+    saveEditedMinutes: async (id, editedMinutes) => {
+        const res = await fetch(`${API_BASE}/meetings/${id}/edited-minutes`, {
+            method: 'PUT',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ edited_minutes: editedMinutes }),
+        });
+        if (!res.ok) {
+            let detail = `Save edited minutes failed: ${res.status}`;
+            try { const d = await res.json(); if (d.detail) detail = d.detail; } catch (e) {}
+            throw new Error(detail);
+        }
+        return res.json();
+    },
+
+    /**
+     * List all templates, ordered by version descending.
+     * @returns {Promise<Array>}
+     */
+    listTemplates: async () => {
+        const res = await fetch(`${API_BASE}/templates`);
+        if (!res.ok) throw new Error(`List templates failed: ${res.status}`);
+        return res.json();
+    },
+
+    /**
+     * Get the currently active template.
+     * @returns {Promise<Object>}
+     */
+    getActiveTemplate: async () => {
+        const res = await fetch(`${API_BASE}/templates/active`);
+        if (!res.ok) throw new Error(`Get active template failed: ${res.status}`);
+        return res.json();
+    },
+
+    /**
+     * Get a single template by ID.
+     * @param {number} templateId
+     * @returns {Promise<Object>}
+     */
+    getTemplate: async (templateId) => {
+        const res = await fetch(`${API_BASE}/templates/${templateId}`);
+        if (!res.ok) throw new Error(`Get template failed: ${res.status}`);
+        return res.json();
+    },
+
+    /**
+     * Manually create a new template (does not auto-activate).
+     * @param {Object} payload - TemplateCreate payload
+     * @returns {Promise<Object>}
+     */
+    createTemplate: async (payload) => {
+        const res = await fetch(`${API_BASE}/templates`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(payload),
+        });
+        if (!res.ok) throw new Error(`Create template failed: ${res.status}`);
+        return res.json();
+    },
+
+    /**
+     * Activate a specific template by ID (deactivates others).
+     * @param {number} templateId
+     * @returns {Promise<Object>}
+     */
+    activateTemplate: async (templateId) => {
+        const res = await fetch(`${API_BASE}/templates/${templateId}/activate`, {
+            method: 'POST',
+        });
+        if (!res.ok) throw new Error(`Activate template failed: ${res.status}`);
+        return res.json();
+    },
+
+    /**
+     * Trigger template evolution in the background.
+     * @param {string} [method=combined] - user_edit / kb_analysis / combined
+     * @returns {Promise<Object>}
+     */
+    evolveTemplate: async (method = 'combined') => {
+        const res = await fetch(`${API_BASE}/templates/evolve?method=${encodeURIComponent(method)}`, {
+            method: 'POST',
+        });
+        if (!res.ok) throw new Error(`Template evolution failed: ${res.status}`);
+        return res.json();
+    },
 };
 
 window.api = api;
 // Quick smoke-test marker — open DevTools console and look for this line
 // to confirm the freshest api.js actually loaded (not a stale cache).
-console.info('[api.js] loaded v1.9 — methods:', Object.keys(api).length);
+console.info('[api.js] loaded v2.0 — methods:', Object.keys(api).length);

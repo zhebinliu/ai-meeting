@@ -92,6 +92,7 @@ class MeetingOut(BaseModel):
     stakeholder_kb_doc_id: Optional[str] = None
     stakeholder_kb_url: Optional[str] = None
     stakeholder_kb_synced_at: Optional[datetime] = None
+    edited_minutes: Optional[str] = None
     created_at: datetime
 
     model_config = {"from_attributes": True}
@@ -152,6 +153,7 @@ async def run_text_to_minutes(meeting_id: int) -> None:
         )
 
         try:
+            template = await _get_active_template_dict()
             pipeline = MeetingAIPipeline(
                 openai_api_key=settings.OPENAI_API_KEY,
                 model=settings.OPENAI_MODEL,
@@ -162,6 +164,7 @@ async def run_text_to_minutes(meeting_id: int) -> None:
                 meeting_title=meeting.title,
                 meeting_id=meeting_id,
                 kb_docs=kb_docs,
+                template=template,
             )
 
             meeting.polished_transcript = result.get("polished_transcript", "")
@@ -351,6 +354,7 @@ async def get_meeting(
         "stakeholder_kb_doc_id": meeting.stakeholder_kb_doc_id,
         "stakeholder_kb_url": meeting.stakeholder_kb_url,
         "stakeholder_kb_synced_at": meeting.stakeholder_kb_synced_at,
+        "edited_minutes": meeting.edited_minutes or "",
         "created_at": meeting.created_at,
         "requirements": requirements,
     }
@@ -375,6 +379,32 @@ async def update_meeting(
     await db.refresh(meeting)
     logger.info("Updated meeting id=%s fields=%s", meeting_id, list(update_data.keys()))
     return meeting
+
+
+@router.put("/{meeting_id}/edited-minutes")
+async def save_edited_minutes(
+    meeting_id: int,
+    payload: EditedMinutesPut,
+    db: AsyncSession = Depends(get_session),
+) -> dict:
+    """Save user-edited meeting minutes for template evolution.
+
+    The frontend calls this when the user switches from edit mode back to
+    read mode, capturing any local edits they made. These edits are later
+    used by the template evolution process to detect user preferences.
+    """
+    meeting = await db.get(Meeting, meeting_id)
+    if meeting is None:
+        raise HTTPException(status_code=404, detail="Meeting not found")
+
+    edited = payload.edited_minutes
+    if not isinstance(edited, dict) or not edited:
+        raise HTTPException(status_code=400, detail="edited_minutes must be a non-empty object")
+
+    meeting.edited_minutes = json.dumps(edited, ensure_ascii=False)
+    await db.commit()
+    logger.info("Meeting %s: saved edited minutes (%d keys)", meeting_id, len(edited))
+    return {"status": "success"}
 
 
 @router.get("/{meeting_id}/requirements", response_model=list[RequirementOut])
@@ -420,6 +450,7 @@ async def process_meeting(
         )
 
     try:
+        template = await _get_active_template_dict()
         pipeline = MeetingAIPipeline(
             openai_api_key=settings.OPENAI_API_KEY,
             model=settings.OPENAI_MODEL,
@@ -428,6 +459,7 @@ async def process_meeting(
         result = await pipeline.process(
             raw_transcript=raw_transcript,
             meeting_title=meeting.title,
+            template=template,
         )
     except Exception as exc:
         logger.exception("Pipeline processing failed for meeting %s", meeting_id)
@@ -637,6 +669,14 @@ class KBSyncRequest(BaseModel):
     doc_type: Optional[str] = Field(
         default=None,
         description="KB doc_type override. Defaults to settings.KB_DEFAULT_DOC_TYPE.",
+    )
+
+
+class EditedMinutesPut(BaseModel):
+    """Payload for saving user-edited meeting minutes."""
+    edited_minutes: dict[str, Any] = Field(
+        default_factory=dict,
+        description="The user-edited minutes object captured from the DOM.",
     )
 
 
@@ -859,6 +899,20 @@ async def _stakeholder_reference_docs(
     if (kb_project_id or "").strip():
         return await _fetch_project_kb_docs(kb_project_id)
     return await _fetch_internal_meeting_summaries(meeting_id, db)
+
+
+async def _get_active_template_dict() -> dict[str, Any]:
+    """Fetch the currently active template as a plain dict.
+
+    Returns an empty dict if no active template exists (the caller
+    should treat this as "no template override").
+    """
+    try:
+        from backend.services.ai.template_evolver import get_active_template_dict as _fetch
+        return await _fetch()
+    except Exception:  # noqa: BLE001
+        logger.debug("Failed to fetch active template (non-fatal)")
+        return {}
 
 
 def _mermaid_escape_label(s: str) -> str:
@@ -1786,6 +1840,7 @@ async def run_meeting_workflow(meeting_id: int, pcm_data: bytes) -> None:
                 meeting_id, meeting.kb_project_id, db
             )
 
+            template = await _get_active_template_dict()
             pipeline = MeetingAIPipeline(
                 openai_api_key=settings.OPENAI_API_KEY,
                 model=settings.OPENAI_MODEL, 
@@ -1796,6 +1851,7 @@ async def run_meeting_workflow(meeting_id: int, pcm_data: bytes) -> None:
                 meeting_title=meeting.title,
                 meeting_id=meeting_id,
                 kb_docs=kb_docs,
+                template=template,
             )
 
             meeting.polished_transcript = result.get("polished_transcript", "")
@@ -1902,6 +1958,7 @@ async def _run_manual_pipeline(meeting_id: int) -> None:
         meeting.status = "polishing"
         await db.commit()
         try:
+            template = await _get_active_template_dict()
             pipeline = MeetingAIPipeline(
                 openai_api_key=settings.OPENAI_API_KEY,
                 model=settings.OPENAI_MODEL,
@@ -1911,6 +1968,7 @@ async def _run_manual_pipeline(meeting_id: int) -> None:
                 raw_transcript=meeting.raw_transcript,
                 meeting_title=meeting.title,
                 meeting_id=meeting_id,
+                template=template,
             )
             await _save_pipeline_result(db, meeting, meeting_id, result)
         except Exception:
